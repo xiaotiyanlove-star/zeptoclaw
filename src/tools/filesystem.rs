@@ -1,4 +1,4 @@
-//! Filesystem tools for PicoClaw
+//! Filesystem tools for ZeptoClaw
 //!
 //! This module provides tools for file system operations including reading,
 //! writing, listing directories, and editing files. All paths can be either
@@ -9,21 +9,22 @@ use serde_json::{json, Value};
 use std::path::Path;
 
 use crate::error::{PicoError, Result};
+use crate::security::validate_path_in_workspace;
 
 use super::{Tool, ToolContext};
 
-/// Resolve a path relative to the workspace if not absolute.
+/// Resolve and validate a path relative to the workspace.
 ///
-/// If the path is absolute, it's returned as-is.
-/// If the path is relative and a workspace is set, it's joined with the workspace.
-/// Otherwise, the path is returned as-is.
-fn resolve_path(path: &str, ctx: &ToolContext) -> String {
-    if Path::new(path).is_absolute() {
-        path.to_string()
-    } else if let Some(ref workspace) = ctx.workspace {
-        Path::new(workspace).join(path).to_string_lossy().to_string()
+/// If workspace is set, validates the path stays within workspace boundaries.
+/// If no workspace, returns the path as-is (less secure, but maintains backwards compatibility).
+fn resolve_path(path: &str, ctx: &ToolContext) -> Result<String> {
+    if let Some(ref workspace) = ctx.workspace {
+        // Validate path stays within workspace
+        let safe_path = validate_path_in_workspace(path, workspace)?;
+        Ok(safe_path.as_path().to_string_lossy().to_string())
     } else {
-        path.to_string()
+        // No workspace set - allow any path (backwards compatible but less secure)
+        Ok(path.to_string())
     }
 }
 
@@ -36,8 +37,8 @@ fn resolve_path(path: &str, ctx: &ToolContext) -> String {
 ///
 /// # Example
 /// ```rust
-/// use picoclaw::tools::{Tool, ToolContext};
-/// use picoclaw::tools::filesystem::ReadFileTool;
+/// use zeptoclaw::tools::{Tool, ToolContext};
+/// use zeptoclaw::tools::filesystem::ReadFileTool;
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
@@ -78,7 +79,7 @@ impl Tool for ReadFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| PicoError::Tool("Missing 'path' argument".into()))?;
 
-        let full_path = resolve_path(path, ctx);
+        let full_path = resolve_path(path, ctx)?;
 
         tokio::fs::read_to_string(&full_path)
             .await
@@ -97,8 +98,8 @@ impl Tool for ReadFileTool {
 ///
 /// # Example
 /// ```rust
-/// use picoclaw::tools::{Tool, ToolContext};
-/// use picoclaw::tools::filesystem::WriteFileTool;
+/// use zeptoclaw::tools::{Tool, ToolContext};
+/// use zeptoclaw::tools::filesystem::WriteFileTool;
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
@@ -147,7 +148,7 @@ impl Tool for WriteFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| PicoError::Tool("Missing 'content' argument".into()))?;
 
-        let full_path = resolve_path(path, ctx);
+        let full_path = resolve_path(path, ctx)?;
 
         // Create parent directories if they don't exist
         if let Some(parent) = Path::new(&full_path).parent() {
@@ -162,7 +163,11 @@ impl Tool for WriteFileTool {
             .await
             .map_err(|e| PicoError::Tool(format!("Failed to write file '{}': {}", full_path, e)))?;
 
-        Ok(format!("Successfully wrote {} bytes to {}", content.len(), full_path))
+        Ok(format!(
+            "Successfully wrote {} bytes to {}",
+            content.len(),
+            full_path
+        ))
     }
 }
 
@@ -175,8 +180,8 @@ impl Tool for WriteFileTool {
 ///
 /// # Example
 /// ```rust
-/// use picoclaw::tools::{Tool, ToolContext};
-/// use picoclaw::tools::filesystem::ListDirTool;
+/// use zeptoclaw::tools::{Tool, ToolContext};
+/// use zeptoclaw::tools::filesystem::ListDirTool;
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
@@ -216,17 +221,19 @@ impl Tool for ListDirTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| PicoError::Tool("Missing 'path' argument".into()))?;
 
-        let full_path = resolve_path(path, ctx);
+        let full_path = resolve_path(path, ctx)?;
 
-        let mut entries = tokio::fs::read_dir(&full_path)
-            .await
-            .map_err(|e| PicoError::Tool(format!("Failed to read directory '{}': {}", full_path, e)))?;
+        let mut entries = tokio::fs::read_dir(&full_path).await.map_err(|e| {
+            PicoError::Tool(format!("Failed to read directory '{}': {}", full_path, e))
+        })?;
 
         let mut items = Vec::new();
 
-        while let Some(entry) = entries.next_entry().await.map_err(|e| {
-            PicoError::Tool(format!("Failed to read directory entry: {}", e))
-        })? {
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| PicoError::Tool(format!("Failed to read directory entry: {}", e)))?
+        {
             let file_name = entry.file_name().to_string_lossy().to_string();
             let file_type = entry.file_type().await.ok();
 
@@ -256,8 +263,8 @@ impl Tool for ListDirTool {
 ///
 /// # Example
 /// ```rust
-/// use picoclaw::tools::{Tool, ToolContext};
-/// use picoclaw::tools::filesystem::EditFileTool;
+/// use zeptoclaw::tools::{Tool, ToolContext};
+/// use zeptoclaw::tools::filesystem::EditFileTool;
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
@@ -319,7 +326,7 @@ impl Tool for EditFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| PicoError::Tool("Missing 'new_text' argument".into()))?;
 
-        let full_path = resolve_path(path, ctx);
+        let full_path = resolve_path(path, ctx)?;
 
         // Read the current content
         let content = tokio::fs::read_to_string(&full_path)
@@ -365,7 +372,7 @@ mod tests {
     async fn test_read_file_tool() {
         let tool = ReadFileTool;
         let ctx = ToolContext::new();
-        let temp_path = "/tmp/picoclaw_test_read.txt";
+        let temp_path = "/tmp/zeptoclaw_test_read.txt";
 
         // Setup
         fs::write(temp_path, "test content").unwrap();
@@ -388,7 +395,10 @@ mod tests {
             .execute(json!({"path": "/tmp/nonexistent_picoclaw_file.txt"}), &ctx)
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to read file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to read file"));
     }
 
     #[tokio::test]
@@ -419,11 +429,14 @@ mod tests {
     async fn test_write_file_tool() {
         let tool = WriteFileTool;
         let ctx = ToolContext::new();
-        let temp_path = "/tmp/picoclaw_test_write.txt";
+        let temp_path = "/tmp/zeptoclaw_test_write.txt";
 
         // Test
         let result = tool
-            .execute(json!({"path": temp_path, "content": "written content"}), &ctx)
+            .execute(
+                json!({"path": temp_path, "content": "written content"}),
+                &ctx,
+            )
             .await;
         assert!(result.is_ok());
         assert!(result.unwrap().contains("Successfully wrote"));
@@ -460,7 +473,10 @@ mod tests {
 
         let result = tool.execute(json!({"path": "/tmp/test.txt"}), &ctx).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Missing 'content'"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Missing 'content'"));
     }
 
     #[tokio::test]
@@ -493,7 +509,10 @@ mod tests {
             .execute(json!({"path": "/tmp/nonexistent_picoclaw_dir"}), &ctx)
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to read directory"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to read directory"));
     }
 
     #[tokio::test]
@@ -532,7 +551,9 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        assert!(result.unwrap().contains("Successfully replaced 1 occurrence"));
+        assert!(result
+            .unwrap()
+            .contains("Successfully replaced 1 occurrence"));
         assert_eq!(fs::read_to_string(&file_path).unwrap(), "Hello Rust");
     }
 
@@ -558,7 +579,10 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(result.unwrap().contains("3 occurrence"));
-        assert_eq!(fs::read_to_string(&file_path).unwrap(), "qux bar qux baz qux");
+        assert_eq!(
+            fs::read_to_string(&file_path).unwrap(),
+            "qux bar qux baz qux"
+        );
     }
 
     #[tokio::test]
@@ -582,7 +606,10 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found in file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not found in file"));
     }
 
     #[tokio::test]
@@ -595,32 +622,52 @@ mod tests {
             .execute(json!({"path": "/tmp/test.txt", "new_text": "new"}), &ctx)
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Missing 'old_text'"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Missing 'old_text'"));
 
         // Missing new_text
         let result = tool
             .execute(json!({"path": "/tmp/test.txt", "old_text": "old"}), &ctx)
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Missing 'new_text'"));
-    }
-
-    #[test]
-    fn test_resolve_path_absolute() {
-        let ctx = ToolContext::new().with_workspace("/workspace");
-        assert_eq!(resolve_path("/absolute/path", &ctx), "/absolute/path");
-    }
-
-    #[test]
-    fn test_resolve_path_relative_with_workspace() {
-        let ctx = ToolContext::new().with_workspace("/workspace");
-        assert_eq!(resolve_path("relative/path", &ctx), "/workspace/relative/path");
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Missing 'new_text'"));
     }
 
     #[test]
     fn test_resolve_path_relative_without_workspace() {
         let ctx = ToolContext::new();
-        assert_eq!(resolve_path("relative/path", &ctx), "relative/path");
+        let result = resolve_path("relative/path", &ctx);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "relative/path");
+    }
+
+    #[test]
+    fn test_resolve_path_relative_with_workspace() {
+        let dir = tempdir().unwrap();
+        // Create the relative path structure
+        std::fs::create_dir_all(dir.path().join("relative")).unwrap();
+        std::fs::write(dir.path().join("relative/path"), "").unwrap();
+
+        let workspace = dir.path().to_str().unwrap();
+        let ctx = ToolContext::new().with_workspace(workspace);
+        let result = resolve_path("relative/path", &ctx);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        // The path should contain "relative/path" and be within workspace
+        assert!(resolved.contains("relative/path") || resolved.ends_with("relative/path"));
+    }
+
+    #[test]
+    fn test_resolve_path_blocks_absolute_outside_workspace() {
+        let dir = tempdir().unwrap();
+        let ctx = ToolContext::new().with_workspace(dir.path().to_str().unwrap());
+        let result = resolve_path("/etc/passwd", &ctx);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -653,5 +700,34 @@ mod tests {
             assert!(params["properties"].is_object());
             assert!(params["required"].is_array());
         }
+    }
+
+    #[tokio::test]
+    async fn test_path_traversal_blocked() {
+        let dir = tempdir().unwrap();
+
+        let tool = ReadFileTool;
+        let ctx = ToolContext::new().with_workspace(dir.path().to_str().unwrap());
+
+        // Attempt path traversal
+        let result = tool
+            .execute(json!({"path": "../../../etc/passwd"}), &ctx)
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Security violation") || err.contains("escapes workspace"));
+    }
+
+    #[tokio::test]
+    async fn test_absolute_path_outside_workspace_blocked() {
+        let dir = tempdir().unwrap();
+
+        let tool = ReadFileTool;
+        let ctx = ToolContext::new().with_workspace(dir.path().to_str().unwrap());
+
+        let result = tool.execute(json!({"path": "/etc/passwd"}), &ctx).await;
+
+        assert!(result.is_err());
     }
 }
