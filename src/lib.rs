@@ -13,7 +13,7 @@ pub mod utils;
 
 pub use agent::{AgentLoop, ContextBuilder};
 pub use bus::{InboundMessage, MediaAttachment, MediaType, MessageBus, OutboundMessage};
-pub use channels::{BaseChannelConfig, Channel, ChannelManager};
+pub use channels::{BaseChannelConfig, Channel, ChannelManager, TelegramChannel};
 pub use config::Config;
 pub use error::{PicoError, Result};
 pub use providers::{
