@@ -668,10 +668,10 @@ async fn test_available_runtimes_includes_native() {
 
 #[tokio::test]
 async fn test_shell_tool_with_native_runtime() {
+    use std::sync::Arc;
     use zeptoclaw::runtime::NativeRuntime;
     use zeptoclaw::tools::shell::ShellTool;
     use zeptoclaw::tools::{Tool, ToolContext};
-    use std::sync::Arc;
 
     let runtime = Arc::new(NativeRuntime::new());
     let tool = ShellTool::with_runtime(runtime);
@@ -687,11 +687,11 @@ async fn test_shell_tool_with_native_runtime() {
 
 #[tokio::test]
 async fn test_shell_tool_runtime_with_workspace() {
+    use std::sync::Arc;
+    use tempfile::tempdir;
     use zeptoclaw::runtime::NativeRuntime;
     use zeptoclaw::tools::shell::ShellTool;
     use zeptoclaw::tools::{Tool, ToolContext};
-    use std::sync::Arc;
-    use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("test.txt"), "content").unwrap();

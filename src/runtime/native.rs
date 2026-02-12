@@ -54,13 +54,10 @@ impl ContainerRuntime for NativeRuntime {
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         // Execute with timeout
-        let output = tokio::time::timeout(
-            Duration::from_secs(config.timeout_secs),
-            cmd.output(),
-        )
-        .await
-        .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
-        .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
+        let output = tokio::time::timeout(Duration::from_secs(config.timeout_secs), cmd.output())
+            .await
+            .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
+            .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
 
         Ok(CommandOutput::new(
             String::from_utf8_lossy(&output.stdout).to_string(),
@@ -99,8 +96,7 @@ mod tests {
     #[tokio::test]
     async fn test_native_runtime_with_workdir() {
         let runtime = NativeRuntime::new();
-        let config = ContainerConfig::new()
-            .with_workdir(std::path::PathBuf::from("/tmp"));
+        let config = ContainerConfig::new().with_workdir(std::path::PathBuf::from("/tmp"));
 
         let output = runtime.execute("pwd", &config).await.unwrap();
         assert!(output.success());
@@ -111,8 +107,7 @@ mod tests {
     #[tokio::test]
     async fn test_native_runtime_with_env() {
         let runtime = NativeRuntime::new();
-        let config = ContainerConfig::new()
-            .with_env("TEST_VAR", "test_value");
+        let config = ContainerConfig::new().with_env("TEST_VAR", "test_value");
 
         let output = runtime.execute("echo $TEST_VAR", &config).await.unwrap();
         assert!(output.success());

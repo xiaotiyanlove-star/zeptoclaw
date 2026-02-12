@@ -106,7 +106,6 @@ impl Default for ShellTool {
     }
 }
 
-
 #[async_trait]
 impl Tool for ShellTool {
     fn name(&self) -> &str {

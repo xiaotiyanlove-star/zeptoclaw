@@ -122,13 +122,10 @@ impl ContainerRuntime for AppleContainerRuntime {
             .stderr(Stdio::piped());
 
         // Execute with timeout
-        let output = tokio::time::timeout(
-            Duration::from_secs(config.timeout_secs),
-            cmd.output(),
-        )
-        .await
-        .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
-        .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
+        let output = tokio::time::timeout(Duration::from_secs(config.timeout_secs), cmd.output())
+            .await
+            .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
+            .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
 
         Ok(CommandOutput::new(
             String::from_utf8_lossy(&output.stdout).to_string(),
@@ -167,7 +164,10 @@ mod tests {
     async fn test_apple_runtime_available() {
         let runtime = AppleContainerRuntime::new();
         // This checks if the container tool is available
-        println!("Apple Container available: {}", runtime.is_available().await);
+        println!(
+            "Apple Container available: {}",
+            runtime.is_available().await
+        );
     }
 
     #[cfg(not(target_os = "macos"))]

@@ -417,7 +417,9 @@ async fn create_agent(config: Config, bus: Arc<MessageBus>) -> Result<Arc<AgentL
     agent.register_tool(Box::new(WriteFileTool)).await;
     agent.register_tool(Box::new(ListDirTool)).await;
     agent.register_tool(Box::new(EditFileTool)).await;
-    agent.register_tool(Box::new(ShellTool::with_runtime(runtime))).await;
+    agent
+        .register_tool(Box::new(ShellTool::with_runtime(runtime)))
+        .await;
 
     info!("Registered {} tools", agent.tool_count().await);
 

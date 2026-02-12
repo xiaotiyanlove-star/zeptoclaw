@@ -16,7 +16,8 @@ pub async fn create_runtime(config: &RuntimeConfig) -> RuntimeResult<Arc<dyn Con
     match config.runtime_type {
         RuntimeType::Native => Ok(Arc::new(NativeRuntime::new())),
         RuntimeType::Docker => {
-            let runtime = DockerRuntime::new(&config.docker.image).with_network(&config.docker.network);
+            let runtime =
+                DockerRuntime::new(&config.docker.image).with_network(&config.docker.network);
 
             let runtime = if let Some(ref mem) = config.docker.memory_limit {
                 runtime.with_memory_limit(mem)

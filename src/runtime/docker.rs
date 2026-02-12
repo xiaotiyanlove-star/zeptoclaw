@@ -120,11 +120,7 @@ impl ContainerRuntime for DockerRuntime {
                     container.to_string_lossy()
                 )
             } else {
-                format!(
-                    "{}:{}",
-                    host.to_string_lossy(),
-                    container.to_string_lossy()
-                )
+                format!("{}:{}", host.to_string_lossy(), container.to_string_lossy())
             };
             args.push("-v".to_string());
             args.push(mount_spec);
@@ -148,13 +144,10 @@ impl ContainerRuntime for DockerRuntime {
             .stderr(Stdio::piped());
 
         // Execute with timeout
-        let output = tokio::time::timeout(
-            Duration::from_secs(config.timeout_secs),
-            cmd.output(),
-        )
-        .await
-        .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
-        .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
+        let output = tokio::time::timeout(Duration::from_secs(config.timeout_secs), cmd.output())
+            .await
+            .map_err(|_| RuntimeError::Timeout(config.timeout_secs))?
+            .map_err(|e| RuntimeError::ExecutionFailed(e.to_string()))?;
 
         Ok(CommandOutput::new(
             String::from_utf8_lossy(&output.stdout).to_string(),
@@ -230,7 +223,10 @@ mod tests {
         let config = ContainerConfig::new();
 
         // This should fail because network is disabled by default
-        let output = runtime.execute("ping -c 1 google.com", &config).await.unwrap();
+        let output = runtime
+            .execute("ping -c 1 google.com", &config)
+            .await
+            .unwrap();
         assert!(!output.success());
     }
 }
