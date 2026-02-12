@@ -16,8 +16,9 @@ pub async fn create_runtime(config: &RuntimeConfig) -> RuntimeResult<Arc<dyn Con
     match config.runtime_type {
         RuntimeType::Native => Ok(Arc::new(NativeRuntime::new())),
         RuntimeType::Docker => {
-            let runtime =
-                DockerRuntime::new(&config.docker.image).with_network(&config.docker.network);
+            let runtime = DockerRuntime::new(&config.docker.image)
+                .with_network(&config.docker.network)
+                .with_extra_mounts(config.docker.extra_mounts.clone());
 
             let runtime = if let Some(ref mem) = config.docker.memory_limit {
                 runtime.with_memory_limit(mem)
@@ -47,6 +48,8 @@ pub async fn create_runtime(config: &RuntimeConfig) -> RuntimeResult<Arc<dyn Con
                 } else {
                     AppleContainerRuntime::with_image(&config.apple.image)
                 };
+
+                let runtime = runtime.with_extra_mounts(config.apple.extra_mounts.clone());
 
                 if !runtime.is_available().await {
                     return Err(RuntimeError::NotAvailable(

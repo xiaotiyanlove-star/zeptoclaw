@@ -368,6 +368,8 @@ pub enum RuntimeType {
 pub struct RuntimeConfig {
     /// Type of container runtime to use
     pub runtime_type: RuntimeType,
+    /// Whether to fall back to native runtime if configured runtime is unavailable
+    pub allow_fallback_to_native: bool,
     /// Docker-specific configuration
     pub docker: DockerConfig,
     /// Apple Container-specific configuration (macOS)
@@ -378,6 +380,7 @@ impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
             runtime_type: RuntimeType::Native,
+            allow_fallback_to_native: false,
             docker: DockerConfig::default(),
             apple: AppleContainerConfig::default(),
         }

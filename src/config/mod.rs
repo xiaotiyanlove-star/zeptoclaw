@@ -426,6 +426,8 @@ mod tests {
         assert_eq!(config.agents.defaults.workspace, "~/.zeptoclaw/workspace");
         assert_eq!(config.gateway.host, "0.0.0.0");
         assert_eq!(config.gateway.port, 8080);
+        assert_eq!(config.runtime.runtime_type, RuntimeType::Native);
+        assert!(!config.runtime.allow_fallback_to_native);
     }
 
     #[test]

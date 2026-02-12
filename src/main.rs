@@ -353,6 +353,7 @@ fn configure_runtime(config: &mut Config) -> Result<()> {
         match choice {
             "1" => {
                 config.runtime.runtime_type = RuntimeType::Native;
+                config.runtime.allow_fallback_to_native = false;
                 println!("Configured: Native runtime (no container isolation)");
                 break;
             }
@@ -368,12 +369,38 @@ fn configure_runtime(config: &mut Config) -> Result<()> {
                     "Configured: Docker runtime with image {}",
                     config.runtime.docker.image
                 );
+
+                print!("Allow fallback to native if Docker is unavailable? [y/N]: ");
+                io::stdout().flush()?;
+                let fallback = read_line()?.trim().to_lowercase();
+                config.runtime.allow_fallback_to_native = matches!(fallback.as_str(), "y" | "yes");
+                if config.runtime.allow_fallback_to_native {
+                    println!(
+                        "Fallback enabled: native runtime will be used if Docker is unavailable."
+                    );
+                } else {
+                    println!("Fallback disabled: startup will fail if Docker is unavailable.");
+                }
                 break;
             }
             #[cfg(target_os = "macos")]
             "3" => {
                 config.runtime.runtime_type = RuntimeType::AppleContainer;
                 println!("Configured: Apple Container runtime");
+
+                print!("Allow fallback to native if Apple Container is unavailable? [y/N]: ");
+                io::stdout().flush()?;
+                let fallback = read_line()?.trim().to_lowercase();
+                config.runtime.allow_fallback_to_native = matches!(fallback.as_str(), "y" | "yes");
+                if config.runtime.allow_fallback_to_native {
+                    println!(
+                        "Fallback enabled: native runtime will be used if Apple Container is unavailable."
+                    );
+                } else {
+                    println!(
+                        "Fallback disabled: startup will fail if Apple Container is unavailable."
+                    );
+                }
                 break;
             }
             _ => {
@@ -403,11 +430,20 @@ async fn create_agent(config: Config, bus: Arc<MessageBus>) -> Result<Arc<AgentL
             r
         }
         Err(e) => {
-            warn!(
-                "Failed to create configured runtime: {}. Falling back to native.",
-                e
-            );
-            Arc::new(NativeRuntime::new())
+            if config.runtime.allow_fallback_to_native {
+                warn!(
+                    "Failed to create configured runtime: {}. Falling back to native.",
+                    e
+                );
+                Arc::new(NativeRuntime::new())
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Configured runtime '{:?}' unavailable: {}. \
+Enable runtime.allow_fallback_to_native to opt in to native fallback.",
+                    config.runtime.runtime_type,
+                    e
+                ));
+            }
         }
     };
 
@@ -925,6 +961,14 @@ async fn cmd_status() -> Result<()> {
     println!("Runtime");
     println!("-------");
     println!("  Type: {:?}", config.runtime.runtime_type);
+    println!(
+        "  Native fallback: {}",
+        if config.runtime.allow_fallback_to_native {
+            "enabled (opt-in)"
+        } else {
+            "disabled (fail-closed)"
+        }
+    );
     let available = available_runtimes().await;
     println!("  Available: {}", available.join(", "));
     println!();

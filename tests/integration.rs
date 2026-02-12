@@ -714,11 +714,13 @@ async fn test_config_runtime_serialization() {
 
     let mut config = RuntimeConfig::default();
     config.runtime_type = RuntimeType::Docker;
+    config.allow_fallback_to_native = true;
     config.docker.image = "ubuntu:22.04".to_string();
 
     let json = serde_json::to_string(&config).unwrap();
     let parsed: RuntimeConfig = serde_json::from_str(&json).unwrap();
 
     assert_eq!(parsed.runtime_type, RuntimeType::Docker);
+    assert!(parsed.allow_fallback_to_native);
     assert_eq!(parsed.docker.image, "ubuntu:22.04");
 }

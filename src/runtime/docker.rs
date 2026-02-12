@@ -20,6 +20,8 @@ pub struct DockerRuntime {
     cpu_limit: Option<String>,
     /// Network mode
     network: String,
+    /// Extra volume mounts from config (host:container or host:container:ro format)
+    extra_mounts: Vec<String>,
 }
 
 impl DockerRuntime {
@@ -30,6 +32,7 @@ impl DockerRuntime {
             memory_limit: Some("512m".to_string()),
             cpu_limit: Some("1.0".to_string()),
             network: "none".to_string(),
+            extra_mounts: Vec::new(),
         }
     }
 
@@ -48,6 +51,12 @@ impl DockerRuntime {
     /// Set network mode
     pub fn with_network(mut self, network: &str) -> Self {
         self.network = network.to_string();
+        self
+    }
+
+    /// Add extra volume mounts (host:container or host:container:ro format)
+    pub fn with_extra_mounts(mut self, mounts: Vec<String>) -> Self {
+        self.extra_mounts = mounts;
         self
     }
 
@@ -111,7 +120,7 @@ impl ContainerRuntime for DockerRuntime {
             args.push(workdir.to_string_lossy().to_string());
         }
 
-        // Add volume mounts
+        // Add volume mounts from ContainerConfig
         for (host, container, readonly) in &config.mounts {
             let mount_spec = if *readonly {
                 format!(
@@ -124,6 +133,12 @@ impl ContainerRuntime for DockerRuntime {
             };
             args.push("-v".to_string());
             args.push(mount_spec);
+        }
+
+        // Add extra mounts from runtime config (host:container or host:container:ro format)
+        for mount in &self.extra_mounts {
+            args.push("-v".to_string());
+            args.push(mount.clone());
         }
 
         // Add environment variables
