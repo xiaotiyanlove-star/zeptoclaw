@@ -15,8 +15,11 @@ use tracing_subscriber::EnvFilter;
 use zeptoclaw::agent::AgentLoop;
 use zeptoclaw::bus::{InboundMessage, MessageBus};
 use zeptoclaw::channels::{ChannelManager, TelegramChannel};
-use zeptoclaw::config::{Config, ProviderConfig, RuntimeType};
-use zeptoclaw::providers::{ClaudeProvider, OpenAIProvider, RUNTIME_SUPPORTED_PROVIDERS};
+use zeptoclaw::config::{Config, RuntimeType};
+use zeptoclaw::providers::{
+    configured_provider_names, configured_unsupported_provider_names, resolve_runtime_provider,
+    ClaudeProvider, OpenAIProvider, RUNTIME_SUPPORTED_PROVIDERS,
+};
 use zeptoclaw::runtime::{available_runtimes, create_runtime, NativeRuntime};
 use zeptoclaw::session::SessionManager;
 use zeptoclaw::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
@@ -62,62 +65,6 @@ enum AuthAction {
     Logout,
     /// Show authentication status
     Status,
-}
-
-fn configured_api_key(provider: &Option<ProviderConfig>) -> Option<&str> {
-    provider
-        .as_ref()
-        .and_then(|p| p.api_key.as_deref())
-        .and_then(|k| if k.is_empty() { None } else { Some(k) })
-}
-
-fn configured_provider_names(config: &Config) -> Vec<&'static str> {
-    let mut names = Vec::new();
-    if configured_api_key(&config.providers.anthropic).is_some() {
-        names.push("anthropic");
-    }
-    if configured_api_key(&config.providers.openai).is_some() {
-        names.push("openai");
-    }
-    if configured_api_key(&config.providers.openrouter).is_some() {
-        names.push("openrouter");
-    }
-    if configured_api_key(&config.providers.groq).is_some() {
-        names.push("groq");
-    }
-    if configured_api_key(&config.providers.zhipu).is_some() {
-        names.push("zhipu");
-    }
-    if configured_api_key(&config.providers.vllm).is_some() {
-        names.push("vllm");
-    }
-    if configured_api_key(&config.providers.gemini).is_some() {
-        names.push("gemini");
-    }
-    names
-}
-
-fn configured_unsupported_provider_names(config: &Config) -> Vec<&'static str> {
-    configured_provider_names(config)
-        .into_iter()
-        .filter(|name| !RUNTIME_SUPPORTED_PROVIDERS.contains(name))
-        .collect()
-}
-
-fn runtime_provider(config: &Config) -> Option<(&'static str, &str, Option<&str>)> {
-    // Priority: Anthropic > OpenAI
-    if let Some(api_key) = configured_api_key(&config.providers.anthropic) {
-        return Some(("anthropic", api_key, None));
-    }
-    if let Some(api_key) = configured_api_key(&config.providers.openai) {
-        let api_base = config
-            .providers
-            .openai
-            .as_ref()
-            .and_then(|p| p.api_base.as_deref());
-        return Some(("openai", api_key, api_base));
-    }
-    None
 }
 
 #[tokio::main]
@@ -506,23 +453,23 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
     info!("Registered {} tools", agent.tool_count().await);
 
     // Set up provider
-    if let Some((provider_name, api_key, api_base)) = runtime_provider(&config) {
-        match provider_name {
+    if let Some(runtime_provider) = resolve_runtime_provider(&config) {
+        match runtime_provider.name {
             "anthropic" => {
-                let provider = ClaudeProvider::new(api_key);
+                let provider = ClaudeProvider::new(&runtime_provider.api_key);
                 agent.set_provider(Box::new(provider)).await;
             }
             "openai" => {
-                let provider = if let Some(base_url) = api_base {
-                    OpenAIProvider::with_base_url(api_key, base_url)
+                let provider = if let Some(base_url) = runtime_provider.api_base.as_deref() {
+                    OpenAIProvider::with_base_url(&runtime_provider.api_key, base_url)
                 } else {
-                    OpenAIProvider::new(api_key)
+                    OpenAIProvider::new(&runtime_provider.api_key)
                 };
                 agent.set_provider(Box::new(provider)).await;
             }
             _ => {}
         }
-        info!("Configured runtime provider: {}", provider_name);
+        info!("Configured runtime provider: {}", runtime_provider.name);
     }
 
     let unsupported = configured_unsupported_provider_names(&config);
@@ -548,7 +495,7 @@ async fn cmd_agent(message: Option<String>) -> Result<()> {
     let agent = create_agent(config.clone(), bus.clone()).await?;
 
     // Check whether the runtime can use at least one configured provider.
-    if runtime_provider(&config).is_none() {
+    if resolve_runtime_provider(&config).is_none() {
         let configured = configured_provider_names(&config);
         if configured.is_empty() {
             eprintln!(
@@ -643,7 +590,7 @@ async fn cmd_gateway() -> Result<()> {
     let config = Config::load().with_context(|| "Failed to load configuration")?;
 
     // Validate provider before starting services.
-    let runtime_provider_name = runtime_provider(&config).map(|(name, _, _)| name);
+    let runtime_provider_name = resolve_runtime_provider(&config).map(|provider| provider.name);
     if runtime_provider_name.is_none() {
         let configured = configured_provider_names(&config);
         if configured.is_empty() {
@@ -1020,7 +967,7 @@ async fn cmd_status() -> Result<()> {
     println!();
 
     // Provider status
-    let runtime_provider_name = runtime_provider(&config).map(|(name, _, _)| name);
+    let runtime_provider_name = resolve_runtime_provider(&config).map(|provider| provider.name);
     println!(
         "Runtime provider: {}",
         runtime_provider_name.unwrap_or("not configured")
