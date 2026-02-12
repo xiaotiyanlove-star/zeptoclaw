@@ -14,5 +14,7 @@ pub mod utils;
 pub use bus::{InboundMessage, MediaAttachment, MediaType, MessageBus, OutboundMessage};
 pub use config::Config;
 pub use error::{PicoError, Result};
-pub use providers::{ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage};
+pub use providers::{
+    ChatOptions, ClaudeProvider, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage,
+};
 pub use session::{Message, Role, Session, SessionManager, ToolCall};
