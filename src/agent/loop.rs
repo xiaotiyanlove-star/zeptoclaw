@@ -6,7 +6,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 use tracing::{debug, error, info};
 
 use crate::bus::{InboundMessage, MessageBus, OutboundMessage};
@@ -31,10 +31,10 @@ use super::context::ContextBuilder;
 ///
 /// ```rust,ignore
 /// use std::sync::Arc;
-/// use picoclaw::agent::AgentLoop;
-/// use picoclaw::bus::MessageBus;
-/// use picoclaw::config::Config;
-/// use picoclaw::session::SessionManager;
+/// use zeptoclaw::agent::AgentLoop;
+/// use zeptoclaw::bus::MessageBus;
+/// use zeptoclaw::config::Config;
+/// use zeptoclaw::session::SessionManager;
 ///
 /// let config = Config::default();
 /// let session_manager = SessionManager::new_memory();
@@ -63,6 +63,8 @@ pub struct AgentLoop {
     running: AtomicBool,
     /// Context builder for constructing LLM messages
     context_builder: ContextBuilder,
+    /// Shutdown signal sender
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl AgentLoop {
@@ -76,10 +78,10 @@ impl AgentLoop {
     /// # Example
     /// ```rust
     /// use std::sync::Arc;
-    /// use picoclaw::agent::AgentLoop;
-    /// use picoclaw::bus::MessageBus;
-    /// use picoclaw::config::Config;
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::agent::AgentLoop;
+    /// use zeptoclaw::bus::MessageBus;
+    /// use zeptoclaw::config::Config;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// let config = Config::default();
     /// let session_manager = SessionManager::new_memory();
@@ -88,6 +90,7 @@ impl AgentLoop {
     /// assert!(!agent.is_running());
     /// ```
     pub fn new(config: Config, session_manager: SessionManager, bus: Arc<MessageBus>) -> Self {
+        let (shutdown_tx, _) = watch::channel(false);
         Self {
             config,
             session_manager: Arc::new(session_manager),
@@ -96,6 +99,7 @@ impl AgentLoop {
             tools: Arc::new(RwLock::new(ToolRegistry::new())),
             running: AtomicBool::new(false),
             context_builder: ContextBuilder::new(),
+            shutdown_tx,
         }
     }
 
@@ -112,6 +116,7 @@ impl AgentLoop {
         bus: Arc<MessageBus>,
         context_builder: ContextBuilder,
     ) -> Self {
+        let (shutdown_tx, _) = watch::channel(false);
         Self {
             config,
             session_manager: Arc::new(session_manager),
@@ -120,6 +125,7 @@ impl AgentLoop {
             tools: Arc::new(RwLock::new(ToolRegistry::new())),
             running: AtomicBool::new(false),
             context_builder,
+            shutdown_tx,
         }
     }
 
@@ -138,7 +144,7 @@ impl AgentLoop {
     ///
     /// # Example
     /// ```rust,ignore
-    /// use picoclaw::providers::ClaudeProvider;
+    /// use zeptoclaw::providers::ClaudeProvider;
     ///
     /// let provider = ClaudeProvider::new("api-key");
     /// agent.set_provider(Box::new(provider)).await;
@@ -155,7 +161,7 @@ impl AgentLoop {
     ///
     /// # Example
     /// ```rust,ignore
-    /// use picoclaw::tools::EchoTool;
+    /// use zeptoclaw::tools::EchoTool;
     ///
     /// agent.register_tool(Box::new(EchoTool)).await;
     /// ```
@@ -335,46 +341,78 @@ impl AgentLoop {
         }
         info!("Starting agent loop");
 
-        while self.running.load(Ordering::SeqCst) {
-            if let Some(msg) = self.bus.consume_inbound().await {
-                info!(
-                    channel = %msg.channel,
-                    sender = %msg.sender_id,
-                    session = %msg.session_key,
-                    "Processing message"
-                );
+        // Subscribe fresh and consume any stale stop signal from a previous run.
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        let _ = *shutdown_rx.borrow_and_update();
 
-                match self.process_message(&msg).await {
-                    Ok(response) => {
-                        debug!(response_len = response.len(), "Generated response");
-
-                        let outbound = OutboundMessage::new(&msg.channel, &msg.chat_id, &response);
-                        if let Err(e) = self.bus.publish_outbound(outbound).await {
-                            error!("Failed to publish outbound message: {}", e);
-                        }
+        loop {
+            tokio::select! {
+                // Check for shutdown signal
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        info!("Received shutdown signal");
+                        break;
                     }
-                    Err(e) => {
-                        error!(error = %e, "Error processing message");
+                }
+                // Wait for inbound messages
+                msg = self.bus.consume_inbound() => {
+                    if let Some(msg) = msg {
+                        info!(
+                            channel = %msg.channel,
+                            sender = %msg.sender_id,
+                            session = %msg.session_key,
+                            "Processing message"
+                        );
 
-                        let error_msg =
-                            OutboundMessage::new(&msg.channel, &msg.chat_id, &format!("Error: {}", e));
-                        self.bus.publish_outbound(error_msg).await.ok();
+                        match self.process_message(&msg).await {
+                            Ok(response) => {
+                                debug!(response_len = response.len(), "Generated response");
+
+                                let outbound = OutboundMessage::new(&msg.channel, &msg.chat_id, &response);
+                                if let Err(e) = self.bus.publish_outbound(outbound).await {
+                                    error!("Failed to publish outbound message: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                error!(error = %e, "Error processing message");
+
+                                let error_msg = OutboundMessage::new(
+                                    &msg.channel,
+                                    &msg.chat_id,
+                                    &format!("Error: {}", e),
+                                );
+                                self.bus.publish_outbound(error_msg).await.ok();
+                            }
+                        }
+                    } else {
+                        // Channel closed, exit loop
+                        info!("Inbound channel closed");
+                        break;
                     }
                 }
             }
+
+            // Also check the running flag (belt and suspenders)
+            if !self.running.load(Ordering::SeqCst) {
+                break;
+            }
         }
 
+        self.running.store(false, Ordering::SeqCst);
         info!("Agent loop stopped");
         Ok(())
     }
 
     /// Stop the agent loop.
     ///
-    /// This signals the loop to stop after processing the current message.
-    /// The `start()` method will return after the loop stops.
+    /// This signals the loop to stop immediately (after completing any
+    /// in-progress message processing). The `start()` method will return
+    /// after the loop stops.
     pub fn stop(&self) {
         info!("Stopping agent loop");
         self.running.store(false, Ordering::SeqCst);
+        // Send shutdown signal to wake up the select! loop
+        let _ = self.shutdown_tx.send(true);
     }
 
     /// Get a reference to the session manager.
@@ -477,9 +515,7 @@ mod tests {
 
         // Start in background task
         let agent_clone = Arc::clone(&agent);
-        let handle = tokio::spawn(async move {
-            agent_clone.start().await
-        });
+        let handle = tokio::spawn(async move { agent_clone.start().await });
 
         // Give it a moment to start
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -493,10 +529,7 @@ mod tests {
         bus.publish_inbound(dummy_msg).await.ok();
 
         // Wait for the task to complete
-        let result = tokio::time::timeout(
-            tokio::time::Duration::from_millis(200),
-            handle
-        ).await;
+        let result = tokio::time::timeout(tokio::time::Duration::from_millis(200), handle).await;
 
         assert!(result.is_ok());
         assert!(!agent.is_running());
@@ -511,9 +544,7 @@ mod tests {
 
         // Start first instance
         let agent_clone = Arc::clone(&agent);
-        let handle = tokio::spawn(async move {
-            agent_clone.start().await
-        });
+        let handle = tokio::spawn(async move { agent_clone.start().await });
 
         // Give it a moment to start
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -529,17 +560,72 @@ mod tests {
         let dummy_msg = InboundMessage::new("test", "user", "chat", "dummy");
         bus.publish_inbound(dummy_msg).await.ok();
 
-        let _ = tokio::time::timeout(
-            tokio::time::Duration::from_millis(200),
-            handle
-        ).await;
+        let _ = tokio::time::timeout(tokio::time::Duration::from_millis(200), handle).await;
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_graceful_shutdown() {
+        // Test that stop() works immediately without needing a dummy message
+        let config = Config::default();
+        let session_manager = SessionManager::new_memory();
+        let bus = Arc::new(MessageBus::new());
+        let agent = Arc::new(AgentLoop::new(config, session_manager, bus));
+
+        // Start in background task
+        let agent_clone = Arc::clone(&agent);
+        let handle = tokio::spawn(async move { agent_clone.start().await });
+
+        // Give it a moment to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        assert!(agent.is_running());
+
+        // Stop without sending any message - should work with graceful shutdown
+        agent.stop();
+
+        // Should complete within a reasonable time (no dummy message needed)
+        let result = tokio::time::timeout(tokio::time::Duration::from_millis(100), handle).await;
+
+        assert!(
+            result.is_ok(),
+            "Agent loop should stop gracefully without needing a message"
+        );
+        assert!(!agent.is_running());
+    }
+
+    #[tokio::test]
+    async fn test_agent_loop_can_restart_after_stop() {
+        let config = Config::default();
+        let session_manager = SessionManager::new_memory();
+        let bus = Arc::new(MessageBus::new());
+        let agent = Arc::new(AgentLoop::new(config, session_manager, bus));
+
+        // First run
+        let agent_clone = Arc::clone(&agent);
+        let first = tokio::spawn(async move { agent_clone.start().await });
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        agent.stop();
+        let first_result =
+            tokio::time::timeout(tokio::time::Duration::from_millis(200), first).await;
+        assert!(first_result.is_ok());
+        assert!(!agent.is_running());
+
+        // Restart same instance and ensure it keeps running until explicitly stopped.
+        let agent_clone = Arc::clone(&agent);
+        let second = tokio::spawn(async move { agent_clone.start().await });
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        assert!(agent.is_running());
+        agent.stop();
+        let second_result =
+            tokio::time::timeout(tokio::time::Duration::from_millis(200), second).await;
+        assert!(second_result.is_ok());
+        assert!(!agent.is_running());
     }
 
     #[test]
     fn test_context_builder_standalone() {
         let builder = ContextBuilder::new();
         let system = builder.build_system_message();
-        assert!(system.content.contains("PicoClaw"));
+        assert!(system.content.contains("ZeptoClaw"));
     }
 
     #[test]

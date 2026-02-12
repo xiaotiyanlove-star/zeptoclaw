@@ -1,13 +1,14 @@
-//! Configuration type definitions for PicoClaw
+//! Configuration type definitions for ZeptoClaw
 //!
 //! This module defines all configuration structs used throughout the framework.
 //! All types implement serde traits for JSON serialization and have sensible defaults.
 
 use serde::{Deserialize, Serialize};
 
-/// Main configuration struct for PicoClaw
+/// Main configuration struct for ZeptoClaw
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     /// Agent configuration (models, tokens, iterations)
     pub agents: AgentConfig,
@@ -21,32 +22,13 @@ pub struct Config {
     pub tools: ToolsConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            agents: AgentConfig::default(),
-            channels: ChannelsConfig::default(),
-            providers: ProvidersConfig::default(),
-            gateway: GatewayConfig::default(),
-            tools: ToolsConfig::default(),
-        }
-    }
-}
-
 /// Agent configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct AgentConfig {
     /// Default agent settings
     pub defaults: AgentDefaults,
-}
-
-impl Default for AgentConfig {
-    fn default() -> Self {
-        Self {
-            defaults: AgentDefaults::default(),
-        }
-    }
 }
 
 /// Default agent settings
@@ -68,7 +50,7 @@ pub struct AgentDefaults {
 impl Default for AgentDefaults {
     fn default() -> Self {
         Self {
-            workspace: "~/.picoclaw/workspace".to_string(),
+            workspace: "~/.zeptoclaw/workspace".to_string(),
             model: "claude-sonnet-4-5-20250929".to_string(),
             max_tokens: 8096,
             temperature: 0.7,
@@ -104,7 +86,7 @@ pub struct ChannelsConfig {
 }
 
 /// Telegram channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TelegramConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -116,18 +98,8 @@ pub struct TelegramConfig {
     pub allow_from: Vec<String>,
 }
 
-impl Default for TelegramConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
 /// Discord channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DiscordConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -139,18 +111,8 @@ pub struct DiscordConfig {
     pub allow_from: Vec<String>,
 }
 
-impl Default for DiscordConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
 /// Slack channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SlackConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -162,17 +124,6 @@ pub struct SlackConfig {
     /// Allowlist of user IDs (empty = allow all)
     #[serde(default)]
     pub allow_from: Vec<String>,
-}
-
-impl Default for SlackConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            bot_token: String::new(),
-            app_token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
 }
 
 /// WhatsApp channel configuration (via bridge)
@@ -204,7 +155,7 @@ impl Default for WhatsAppConfig {
 }
 
 /// Feishu (Lark) channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FeishuConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -222,19 +173,6 @@ pub struct FeishuConfig {
     /// Allowlist of user IDs (empty = allow all)
     #[serde(default)]
     pub allow_from: Vec<String>,
-}
-
-impl Default for FeishuConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            app_id: String::new(),
-            app_secret: String::new(),
-            encrypt_key: String::new(),
-            verification_token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
 }
 
 /// MaixCam channel configuration
@@ -274,7 +212,7 @@ impl Default for MaixCamConfig {
 }
 
 /// QQ channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QQConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -288,19 +226,8 @@ pub struct QQConfig {
     pub allow_from: Vec<String>,
 }
 
-impl Default for QQConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            app_id: String::new(),
-            app_secret: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
 /// DingTalk channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DingTalkConfig {
     /// Whether the channel is enabled
     #[serde(default)]
@@ -312,17 +239,6 @@ pub struct DingTalkConfig {
     /// Allowlist of user IDs (empty = allow all)
     #[serde(default)]
     pub allow_from: Vec<String>,
-}
-
-impl Default for DingTalkConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            client_id: String::new(),
-            client_secret: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
 }
 
 // ============================================================================
@@ -350,7 +266,7 @@ pub struct ProvidersConfig {
 }
 
 /// Generic provider configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderConfig {
     /// API key for authentication
     #[serde(default)]
@@ -361,16 +277,6 @@ pub struct ProviderConfig {
     /// Authentication method (e.g., "oauth", "api_key")
     #[serde(default)]
     pub auth_method: Option<String>,
-}
-
-impl Default for ProviderConfig {
-    fn default() -> Self {
-        Self {
-            api_key: None,
-            api_base: None,
-            auth_method: None,
-        }
-    }
 }
 
 // ============================================================================

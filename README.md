@@ -1,10 +1,10 @@
-# PicoClaw Rust
+# ZeptoClaw Rust
 
 Ultra-lightweight personal AI assistant framework, ported from Go to Rust.
 
 ## Overview
 
-PicoClaw Rust is a complete rewrite of the PicoClaw AI assistant in Rust, maintaining the same ultra-efficient design philosophy while leveraging Rust's safety guarantees and zero-cost abstractions.
+ZeptoClaw Rust is a complete rewrite of the ZeptoClaw AI assistant in Rust, maintaining the same ultra-efficient design philosophy while leveraging Rust's safety guarantees and zero-cost abstractions.
 
 ### Features
 
@@ -51,7 +51,7 @@ The release build uses aggressive optimizations:
 make install
 ```
 
-This installs the binary to `~/.local/bin/picoclaw`.
+This installs the binary to `~/.local/bin/zeptoclaw`.
 
 ## Usage
 
@@ -59,10 +59,10 @@ This installs the binary to `~/.local/bin/picoclaw`.
 
 1. **Initialize configuration**:
    ```bash
-   picoclaw onboard
+   zeptoclaw onboard
    ```
 
-2. **Configure API keys** in `~/.picoclaw/config.json`:
+2. **Configure API keys** in `~/.zeptoclaw/config.json`:
    ```json
    {
      "agents": {
@@ -81,23 +81,23 @@ This installs the binary to `~/.local/bin/picoclaw`.
 
 3. **Chat with the agent**:
    ```bash
-   picoclaw agent -m "What is 2+2?"
+   zeptoclaw agent -m "What is 2+2?"
    ```
 
 ### CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `picoclaw onboard` | Initialize config and workspace |
-| `picoclaw agent -m "..."` | Single message mode |
-| `picoclaw agent` | Interactive chat mode |
-| `picoclaw gateway` | Start Telegram bot gateway |
-| `picoclaw status` | Show configuration status |
+| `zeptoclaw onboard` | Initialize config and workspace |
+| `zeptoclaw agent -m "..."` | Single message mode |
+| `zeptoclaw agent` | Interactive chat mode |
+| `zeptoclaw gateway` | Start Telegram bot gateway |
+| `zeptoclaw status` | Show configuration status |
 
 ### Interactive Mode
 
 ```bash
-picoclaw agent
+zeptoclaw agent
 ```
 
 In interactive mode:
@@ -107,7 +107,7 @@ In interactive mode:
 
 ## Configuration
 
-Config file location: `~/.picoclaw/config.json`
+Config file location: `~/.zeptoclaw/config.json`
 
 ### Full Configuration Example
 
@@ -115,7 +115,7 @@ Config file location: `~/.picoclaw/config.json`
 {
   "agents": {
     "defaults": {
-      "workspace": "~/.picoclaw/workspace",
+      "workspace": "~/.zeptoclaw/workspace",
       "model": "anthropic/claude-sonnet-4",
       "max_tokens": 8192,
       "temperature": 0.7,
@@ -180,7 +180,7 @@ Config file location: `~/.picoclaw/config.json`
 ### Workspace Structure
 
 ```
-~/.picoclaw/workspace/
+~/.zeptoclaw/workspace/
 ├── sessions/          # Conversation history
 ├── memory/           # Long-term memory (MEMORY.md)
 ├── AGENTS.md         # Agent behavior guide
@@ -238,7 +238,7 @@ rust/
 
 ## Tools
 
-PicoClaw includes several built-in tools:
+ZeptoClaw includes several built-in tools:
 
 | Tool | Description |
 |------|-------------|
@@ -273,5 +273,5 @@ Contributions are welcome! Please ensure:
 
 ## Acknowledgments
 
-- Original [PicoClaw Go](https://github.com/sipeed/picoclaw) implementation
+- Original [ZeptoClaw Go](https://github.com/sipeed/zeptoclaw) implementation
 - Inspired by [nanobot](https://github.com/HKUDS/nanobot)

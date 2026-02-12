@@ -1,4 +1,4 @@
-//! Provider types for PicoClaw
+//! Provider types for ZeptoClaw
 //!
 //! This module defines the core types and traits for LLM providers,
 //! including the `LLMProvider` trait, chat options, and response types.
@@ -33,7 +33,7 @@ impl ToolDefinition {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ToolDefinition;
+    /// use zeptoclaw::providers::ToolDefinition;
     /// use serde_json::json;
     ///
     /// let tool = ToolDefinition::new(
@@ -60,7 +60,7 @@ impl ToolDefinition {
 /// Trait for LLM providers (OpenAI, Anthropic, etc.).
 ///
 /// Implement this trait to add support for a new LLM provider.
-/// The provider is responsible for translating between PicoClaw's
+/// The provider is responsible for translating between ZeptoClaw's
 /// message format and the provider's API format.
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
@@ -115,7 +115,7 @@ impl ChatOptions {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ChatOptions;
+    /// use zeptoclaw::providers::ChatOptions;
     ///
     /// let options = ChatOptions::new();
     /// assert!(options.max_tokens.is_none());
@@ -131,7 +131,7 @@ impl ChatOptions {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ChatOptions;
+    /// use zeptoclaw::providers::ChatOptions;
     ///
     /// let options = ChatOptions::new().with_max_tokens(1000);
     /// assert_eq!(options.max_tokens, Some(1000));
@@ -151,7 +151,7 @@ impl ChatOptions {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ChatOptions;
+    /// use zeptoclaw::providers::ChatOptions;
     ///
     /// let options = ChatOptions::new().with_temperature(0.7);
     /// assert_eq!(options.temperature, Some(0.7));
@@ -168,7 +168,7 @@ impl ChatOptions {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ChatOptions;
+    /// use zeptoclaw::providers::ChatOptions;
     ///
     /// let options = ChatOptions::new().with_top_p(0.9);
     /// assert_eq!(options.top_p, Some(0.9));
@@ -185,7 +185,7 @@ impl ChatOptions {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::ChatOptions;
+    /// use zeptoclaw::providers::ChatOptions;
     ///
     /// let options = ChatOptions::new().with_stop(vec!["END".to_string()]);
     /// assert!(options.stop.is_some());
@@ -215,7 +215,7 @@ impl LLMResponse {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::LLMResponse;
+    /// use zeptoclaw::providers::LLMResponse;
     ///
     /// let response = LLMResponse::text("Hello, world!");
     /// assert_eq!(response.content, "Hello, world!");
@@ -237,7 +237,7 @@ impl LLMResponse {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::{LLMResponse, LLMToolCall};
+    /// use zeptoclaw::providers::{LLMResponse, LLMToolCall};
     ///
     /// let tool_call = LLMToolCall::new("call_1", "search", r#"{"query": "rust"}"#);
     /// let response = LLMResponse::with_tools("Searching...", vec![tool_call]);
@@ -255,7 +255,7 @@ impl LLMResponse {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::LLMResponse;
+    /// use zeptoclaw::providers::LLMResponse;
     ///
     /// let response = LLMResponse::text("No tools here");
     /// assert!(!response.has_tool_calls());
@@ -298,7 +298,7 @@ impl LLMToolCall {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::LLMToolCall;
+    /// use zeptoclaw::providers::LLMToolCall;
     ///
     /// let call = LLMToolCall::new("call_123", "web_search", r#"{"query": "rust"}"#);
     /// assert_eq!(call.name, "web_search");
@@ -318,7 +318,7 @@ impl LLMToolCall {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::LLMToolCall;
+    /// use zeptoclaw::providers::LLMToolCall;
     /// use serde::Deserialize;
     ///
     /// #[derive(Deserialize)]
@@ -355,7 +355,7 @@ impl Usage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::Usage;
+    /// use zeptoclaw::providers::Usage;
     ///
     /// let usage = Usage::new(100, 50);
     /// assert_eq!(usage.total_tokens, 150);

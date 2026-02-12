@@ -1,7 +1,7 @@
 //! Channels module - Communication channels (Telegram, Discord, etc.)
 //!
 //! This module provides the infrastructure for managing communication channels
-//! in PicoClaw. Channels are responsible for receiving messages from users
+//! in ZeptoClaw. Channels are responsible for receiving messages from users
 //! and sending responses back.
 //!
 //! # Architecture
@@ -33,9 +33,9 @@
 //!
 //! ```ignore
 //! use async_trait::async_trait;
-//! use picoclaw::channels::{Channel, BaseChannelConfig};
-//! use picoclaw::bus::{MessageBus, OutboundMessage};
-//! use picoclaw::error::Result;
+//! use zeptoclaw::channels::{Channel, BaseChannelConfig};
+//! use zeptoclaw::bus::{MessageBus, OutboundMessage};
+//! use zeptoclaw::error::Result;
 //! use std::sync::Arc;
 //!
 //! pub struct MyChannel {
@@ -90,9 +90,9 @@
 //!
 //! ```
 //! use std::sync::Arc;
-//! use picoclaw::bus::MessageBus;
-//! use picoclaw::config::Config;
-//! use picoclaw::channels::ChannelManager;
+//! use zeptoclaw::bus::MessageBus;
+//! use zeptoclaw::config::Config;
+//! use zeptoclaw::channels::ChannelManager;
 //!
 //! # tokio_test::block_on(async {
 //! let bus = Arc::new(MessageBus::new());

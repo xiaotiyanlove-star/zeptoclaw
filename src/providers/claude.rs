@@ -6,8 +6,8 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use picoclaw::providers::{claude::ClaudeProvider, ChatOptions, LLMProvider};
-//! use picoclaw::session::Message;
+//! use zeptoclaw::providers::{claude::ClaudeProvider, ChatOptions, LLMProvider};
+//! use zeptoclaw::session::Message;
 //!
 //! async fn example() {
 //!     let provider = ClaudeProvider::new("your-api-key");
@@ -63,8 +63,8 @@ impl ClaudeProvider {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::providers::claude::ClaudeProvider;
-    /// use picoclaw::providers::LLMProvider;
+    /// use zeptoclaw::providers::claude::ClaudeProvider;
+    /// use zeptoclaw::providers::LLMProvider;
     ///
     /// let provider = ClaudeProvider::new("sk-ant-api03-xxx");
     /// assert_eq!(provider.name(), "claude");
@@ -290,13 +290,13 @@ struct ClaudeUsage {
 // Conversion Functions
 // ============================================================================
 
-/// Convert PicoClaw messages to Claude API format.
+/// Convert ZeptoClaw messages to Claude API format.
 ///
 /// Extracts the system message (if present) and converts all other messages
 /// to Claude's message format. Handles tool calls and tool results.
 ///
 /// # Arguments
-/// * `messages` - PicoClaw messages
+/// * `messages` - ZeptoClaw messages
 ///
 /// # Returns
 /// A tuple of (optional system message, Claude messages)
@@ -318,7 +318,7 @@ fn convert_messages(messages: Vec<Message>) -> Result<(Option<String>, Vec<Claud
                 if !pending_tool_results.is_empty() {
                     claude_messages.push(ClaudeMessage {
                         role: "user".to_string(),
-                        content: ClaudeContent::Blocks(pending_tool_results.drain(..).collect()),
+                        content: ClaudeContent::Blocks(std::mem::take(&mut pending_tool_results)),
                     });
                 }
 
@@ -333,7 +333,7 @@ fn convert_messages(messages: Vec<Message>) -> Result<(Option<String>, Vec<Claud
                 if !pending_tool_results.is_empty() {
                     claude_messages.push(ClaudeMessage {
                         role: "user".to_string(),
-                        content: ClaudeContent::Blocks(pending_tool_results.drain(..).collect()),
+                        content: ClaudeContent::Blocks(std::mem::take(&mut pending_tool_results)),
                     });
                 }
 
@@ -395,7 +395,7 @@ fn convert_messages(messages: Vec<Message>) -> Result<(Option<String>, Vec<Claud
     Ok((system, claude_messages))
 }
 
-/// Convert PicoClaw tool definitions to Claude API format.
+/// Convert ZeptoClaw tool definitions to Claude API format.
 fn convert_tools(tools: Vec<ToolDefinition>) -> Vec<ClaudeTool> {
     tools
         .into_iter()
@@ -407,7 +407,7 @@ fn convert_tools(tools: Vec<ToolDefinition>) -> Vec<ClaudeTool> {
         .collect()
 }
 
-/// Convert Claude API response to PicoClaw LLMResponse.
+/// Convert Claude API response to ZeptoClaw LLMResponse.
 fn convert_response(response: ClaudeResponse) -> LLMResponse {
     let mut content = String::new();
     let mut tool_calls: Vec<LLMToolCall> = Vec::new();
@@ -440,7 +440,7 @@ fn convert_response(response: ClaudeResponse) -> LLMResponse {
     }
 }
 
-/// Convert PicoClaw ToolCall to LLMToolCall.
+/// Convert ZeptoClaw ToolCall to LLMToolCall.
 ///
 /// This is a helper for converting between the session's ToolCall type
 /// and the provider's LLMToolCall type.

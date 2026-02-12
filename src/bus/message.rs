@@ -1,4 +1,4 @@
-//! Message types for the PicoClaw message bus
+//! Message types for the ZeptoClaw message bus
 //!
 //! This module defines the core message types used for communication
 //! between channels, agents, and the message bus.
@@ -77,7 +77,7 @@ impl InboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::InboundMessage;
+    /// use zeptoclaw::bus::message::InboundMessage;
     ///
     /// let msg = InboundMessage::new("telegram", "user123", "chat456", "Hello, bot!");
     /// assert_eq!(msg.session_key, "telegram:chat456");
@@ -98,7 +98,7 @@ impl InboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::{InboundMessage, MediaAttachment, MediaType};
+    /// use zeptoclaw::bus::message::{InboundMessage, MediaAttachment, MediaType};
     ///
     /// let media = MediaAttachment::new(MediaType::Image).with_url("https://example.com/image.png");
     /// let msg = InboundMessage::new("telegram", "user123", "chat456", "Check this out!")
@@ -114,7 +114,7 @@ impl InboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::InboundMessage;
+    /// use zeptoclaw::bus::message::InboundMessage;
     ///
     /// let msg = InboundMessage::new("telegram", "user123", "chat456", "Hello")
     ///     .with_metadata("message_id", "12345")
@@ -142,7 +142,7 @@ impl OutboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::OutboundMessage;
+    /// use zeptoclaw::bus::message::OutboundMessage;
     ///
     /// let msg = OutboundMessage::new("telegram", "chat456", "Hello from the bot!");
     /// assert_eq!(msg.channel, "telegram");
@@ -160,7 +160,7 @@ impl OutboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::OutboundMessage;
+    /// use zeptoclaw::bus::message::OutboundMessage;
     ///
     /// let msg = OutboundMessage::new("telegram", "chat456", "This is a reply")
     ///     .with_reply("original_msg_123");
@@ -175,7 +175,7 @@ impl OutboundMessage {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::message::{InboundMessage, OutboundMessage};
+    /// use zeptoclaw::bus::message::{InboundMessage, OutboundMessage};
     ///
     /// let inbound = InboundMessage::new("telegram", "user123", "chat456", "Hello");
     /// let response = OutboundMessage::reply_to(&inbound, "Hello back!");
@@ -249,13 +249,16 @@ mod tests {
             .with_url("https://example.com/image.png")
             .with_filename("image.png");
 
-        let msg = InboundMessage::new("discord", "user1", "channel1", "Check this")
-            .with_media(media);
+        let msg =
+            InboundMessage::new("discord", "user1", "channel1", "Check this").with_media(media);
 
         assert!(msg.has_media());
         let attachment = msg.media.unwrap();
         assert_eq!(attachment.media_type, MediaType::Image);
-        assert_eq!(attachment.url, Some("https://example.com/image.png".to_string()));
+        assert_eq!(
+            attachment.url,
+            Some("https://example.com/image.png".to_string())
+        );
         assert_eq!(attachment.filename, Some("image.png".to_string()));
     }
 
@@ -267,7 +270,10 @@ mod tests {
 
         assert_eq!(msg.metadata.len(), 2);
         assert_eq!(msg.metadata.get("message_id"), Some(&"12345".to_string()));
-        assert_eq!(msg.metadata.get("timestamp"), Some(&"2024-01-01T00:00:00Z".to_string()));
+        assert_eq!(
+            msg.metadata.get("timestamp"),
+            Some(&"2024-01-01T00:00:00Z".to_string())
+        );
     }
 
     #[test]
@@ -323,7 +329,8 @@ mod tests {
             .with_metadata("key", "value");
 
         let json = serde_json::to_string(&msg).expect("Failed to serialize");
-        let deserialized: InboundMessage = serde_json::from_str(&json).expect("Failed to deserialize");
+        let deserialized: InboundMessage =
+            serde_json::from_str(&json).expect("Failed to deserialize");
 
         assert_eq!(deserialized.channel, "telegram");
         assert_eq!(deserialized.content, "Hello");
@@ -332,11 +339,12 @@ mod tests {
 
     #[test]
     fn test_outbound_message_serialization() {
-        let msg = OutboundMessage::new("discord", "channel1", "Hello Discord!")
-            .with_reply("msg_123");
+        let msg =
+            OutboundMessage::new("discord", "channel1", "Hello Discord!").with_reply("msg_123");
 
         let json = serde_json::to_string(&msg).expect("Failed to serialize");
-        let deserialized: OutboundMessage = serde_json::from_str(&json).expect("Failed to deserialize");
+        let deserialized: OutboundMessage =
+            serde_json::from_str(&json).expect("Failed to deserialize");
 
         assert_eq!(deserialized.channel, "discord");
         assert_eq!(deserialized.reply_to, Some("msg_123".to_string()));

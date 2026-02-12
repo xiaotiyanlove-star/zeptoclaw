@@ -7,9 +7,9 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use picoclaw::providers::{LLMProvider, ChatOptions, ToolDefinition};
-//! use picoclaw::providers::claude::ClaudeProvider;
-//! use picoclaw::session::Message;
+//! use zeptoclaw::providers::{LLMProvider, ChatOptions, ToolDefinition};
+//! use zeptoclaw::providers::claude::ClaudeProvider;
+//! use zeptoclaw::session::Message;
 //!
 //! async fn example() {
 //!     let provider = ClaudeProvider::new("your-api-key");
@@ -22,9 +22,12 @@
 //! ```
 
 pub mod claude;
+pub mod openai;
 mod types;
 
+/// Provider IDs currently supported by the runtime.
+pub const RUNTIME_SUPPORTED_PROVIDERS: &[&str] = &["anthropic", "openai"];
+
 pub use claude::ClaudeProvider;
-pub use types::{
-    ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage,
-};
+pub use openai::OpenAIProvider;
+pub use types::{ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage};

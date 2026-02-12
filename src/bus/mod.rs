@@ -1,6 +1,6 @@
 //! Message Bus Module
 //!
-//! This module provides the core message bus infrastructure for PicoClaw.
+//! This module provides the core message bus infrastructure for ZeptoClaw.
 //! The `MessageBus` handles routing of inbound messages (from channels to agents)
 //! and outbound messages (from agents back to channels).
 //!
@@ -23,7 +23,7 @@
 //! # Example
 //!
 //! ```
-//! use picoclaw::bus::{MessageBus, InboundMessage, OutboundMessage};
+//! use zeptoclaw::bus::{MessageBus, InboundMessage, OutboundMessage};
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -78,7 +78,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::MessageBus;
+    /// use zeptoclaw::bus::MessageBus;
     ///
     /// let bus = MessageBus::new();
     /// ```
@@ -93,7 +93,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::MessageBus;
+    /// use zeptoclaw::bus::MessageBus;
     ///
     /// let bus = MessageBus::with_buffer_size(500);
     /// ```
@@ -122,7 +122,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::{MessageBus, InboundMessage};
+    /// use zeptoclaw::bus::{MessageBus, InboundMessage};
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -148,7 +148,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::{MessageBus, InboundMessage};
+    /// use zeptoclaw::bus::{MessageBus, InboundMessage};
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -181,7 +181,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::{MessageBus, OutboundMessage};
+    /// use zeptoclaw::bus::{MessageBus, OutboundMessage};
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -216,7 +216,7 @@ impl MessageBus {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::bus::{MessageBus, InboundMessage};
+    /// use zeptoclaw::bus::{MessageBus, InboundMessage};
     ///
     /// #[tokio::main]
     /// async fn main() {

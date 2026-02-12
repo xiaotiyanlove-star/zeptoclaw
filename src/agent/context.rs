@@ -5,8 +5,8 @@
 
 use crate::session::Message;
 
-/// Default system prompt for PicoClaw agent
-const DEFAULT_SYSTEM_PROMPT: &str = r#"You are PicoClaw, an ultra-lightweight personal AI assistant.
+/// Default system prompt for ZeptoClaw agent
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are ZeptoClaw, an ultra-lightweight personal AI assistant.
 
 You have access to tools to help accomplish tasks. Use them when needed.
 
@@ -20,8 +20,8 @@ Be concise but helpful. Focus on completing the user's request efficiently."#;
 /// # Example
 ///
 /// ```rust
-/// use picoclaw::agent::ContextBuilder;
-/// use picoclaw::session::Message;
+/// use zeptoclaw::agent::ContextBuilder;
+/// use zeptoclaw::session::Message;
 ///
 /// let builder = ContextBuilder::new()
 ///     .with_skills("- /help: Show help information");
@@ -41,11 +41,11 @@ impl ContextBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use picoclaw::agent::ContextBuilder;
+    /// use zeptoclaw::agent::ContextBuilder;
     ///
     /// let builder = ContextBuilder::new();
     /// let system = builder.build_system_message();
-    /// assert!(system.content.contains("PicoClaw"));
+    /// assert!(system.content.contains("ZeptoClaw"));
     /// ```
     pub fn new() -> Self {
         Self {
@@ -61,7 +61,7 @@ impl ContextBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use picoclaw::agent::ContextBuilder;
+    /// use zeptoclaw::agent::ContextBuilder;
     ///
     /// let builder = ContextBuilder::new()
     ///     .with_system_prompt("You are a helpful assistant.");
@@ -83,7 +83,7 @@ impl ContextBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use picoclaw::agent::ContextBuilder;
+    /// use zeptoclaw::agent::ContextBuilder;
     ///
     /// let builder = ContextBuilder::new()
     ///     .with_skills("- /search: Search the web\n- /help: Show help");
@@ -103,8 +103,8 @@ impl ContextBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use picoclaw::agent::ContextBuilder;
-    /// use picoclaw::session::Role;
+    /// use zeptoclaw::agent::ContextBuilder;
+    /// use zeptoclaw::session::Role;
     ///
     /// let builder = ContextBuilder::new();
     /// let system = builder.build_system_message();
@@ -135,8 +135,8 @@ impl ContextBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use picoclaw::agent::ContextBuilder;
-    /// use picoclaw::session::Message;
+    /// use zeptoclaw::agent::ContextBuilder;
+    /// use zeptoclaw::session::Message;
     ///
     /// let builder = ContextBuilder::new();
     /// let history = vec![
@@ -180,27 +180,25 @@ mod tests {
     #[test]
     fn test_context_builder_new() {
         let builder = ContextBuilder::new();
-        assert!(builder.system_prompt().contains("PicoClaw"));
+        assert!(builder.system_prompt().contains("ZeptoClaw"));
         assert!(!builder.has_skills());
     }
 
     #[test]
     fn test_context_builder_default() {
         let builder = ContextBuilder::default();
-        assert!(builder.system_prompt().contains("PicoClaw"));
+        assert!(builder.system_prompt().contains("ZeptoClaw"));
     }
 
     #[test]
     fn test_context_builder_custom_system_prompt() {
-        let builder = ContextBuilder::new()
-            .with_system_prompt("Custom prompt here");
+        let builder = ContextBuilder::new().with_system_prompt("Custom prompt here");
         assert_eq!(builder.system_prompt(), "Custom prompt here");
     }
 
     #[test]
     fn test_context_builder_with_skills() {
-        let builder = ContextBuilder::new()
-            .with_skills("- /test: Test skill");
+        let builder = ContextBuilder::new().with_skills("- /test: Test skill");
         assert!(builder.has_skills());
 
         let system = builder.build_system_message();
@@ -214,7 +212,7 @@ mod tests {
         let system = builder.build_system_message();
 
         assert_eq!(system.role, Role::System);
-        assert!(system.content.contains("PicoClaw"));
+        assert!(system.content.contains("ZeptoClaw"));
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! Channel trait and types for PicoClaw
+//! Channel trait and types for ZeptoClaw
 //!
 //! This module defines the `Channel` trait that all communication channels
 //! (Telegram, Discord, Slack, etc.) must implement, along with supporting types.
@@ -20,9 +20,9 @@ use crate::error::Result;
 ///
 /// ```ignore
 /// use async_trait::async_trait;
-/// use picoclaw::channels::{Channel, BaseChannelConfig};
-/// use picoclaw::bus::OutboundMessage;
-/// use picoclaw::error::Result;
+/// use zeptoclaw::channels::{Channel, BaseChannelConfig};
+/// use zeptoclaw::bus::OutboundMessage;
+/// use zeptoclaw::error::Result;
 ///
 /// struct MyChannel {
 ///     config: BaseChannelConfig,
@@ -117,7 +117,7 @@ pub trait Channel: Send + Sync {
 /// # Example
 ///
 /// ```
-/// use picoclaw::channels::BaseChannelConfig;
+/// use zeptoclaw::channels::BaseChannelConfig;
 ///
 /// let config = BaseChannelConfig {
 ///     name: "telegram".to_string(),
@@ -127,7 +127,7 @@ pub trait Channel: Send + Sync {
 /// assert!(config.is_allowed("user123"));
 /// assert!(!config.is_allowed("user789"));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BaseChannelConfig {
     /// The unique name of this channel
     pub name: String,
@@ -147,7 +147,7 @@ impl BaseChannelConfig {
     /// # Example
     ///
     /// ```
-    /// use picoclaw::channels::BaseChannelConfig;
+    /// use zeptoclaw::channels::BaseChannelConfig;
     ///
     /// let config = BaseChannelConfig::new("telegram");
     /// assert!(config.is_allowed("anyone")); // Empty allowlist = allow all
@@ -169,7 +169,7 @@ impl BaseChannelConfig {
     /// # Example
     ///
     /// ```
-    /// use picoclaw::channels::BaseChannelConfig;
+    /// use zeptoclaw::channels::BaseChannelConfig;
     ///
     /// let config = BaseChannelConfig::with_allowlist("telegram", vec!["user1".to_string()]);
     /// assert!(config.is_allowed("user1"));
@@ -194,7 +194,7 @@ impl BaseChannelConfig {
     /// # Example
     ///
     /// ```
-    /// use picoclaw::channels::BaseChannelConfig;
+    /// use zeptoclaw::channels::BaseChannelConfig;
     ///
     /// // With allowlist
     /// let config = BaseChannelConfig {
@@ -213,15 +213,6 @@ impl BaseChannelConfig {
     }
 }
 
-impl Default for BaseChannelConfig {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            allowlist: Vec::new(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,8 +226,10 @@ mod tests {
 
     #[test]
     fn test_base_channel_config_with_allowlist() {
-        let config =
-            BaseChannelConfig::with_allowlist("discord", vec!["user1".to_string(), "user2".to_string()]);
+        let config = BaseChannelConfig::with_allowlist(
+            "discord",
+            vec!["user1".to_string(), "user2".to_string()],
+        );
         assert_eq!(config.name, "discord");
         assert_eq!(config.allowlist.len(), 2);
     }

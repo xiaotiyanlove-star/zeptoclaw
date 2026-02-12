@@ -1,6 +1,6 @@
 //! Telegram Channel Implementation
 //!
-//! This module provides a Telegram bot channel for PicoClaw using the teloxide library.
+//! This module provides a Telegram bot channel for ZeptoClaw using the teloxide library.
 //! It handles receiving messages from Telegram users and sending responses back.
 //!
 //! # Architecture
@@ -22,9 +22,9 @@
 //!
 //! ```ignore
 //! use std::sync::Arc;
-//! use picoclaw::bus::MessageBus;
-//! use picoclaw::config::TelegramConfig;
-//! use picoclaw::channels::TelegramChannel;
+//! use zeptoclaw::bus::MessageBus;
+//! use zeptoclaw::config::TelegramConfig;
+//! use zeptoclaw::channels::TelegramChannel;
 //!
 //! let config = TelegramConfig {
 //!     enabled: true,
@@ -67,8 +67,9 @@ pub struct TelegramChannel {
     base_config: BaseChannelConfig,
     /// Reference to the message bus for publishing inbound messages
     bus: Arc<MessageBus>,
-    /// Atomic flag indicating if the channel is currently running
-    running: AtomicBool,
+    /// Atomic flag indicating if the channel is currently running.
+    /// Wrapped in Arc so the spawned polling task can update it.
+    running: Arc<AtomicBool>,
     /// Sender to signal shutdown to the polling task
     shutdown_tx: Option<mpsc::Sender<()>>,
 }
@@ -85,9 +86,9 @@ impl TelegramChannel {
     ///
     /// ```ignore
     /// use std::sync::Arc;
-    /// use picoclaw::bus::MessageBus;
-    /// use picoclaw::config::TelegramConfig;
-    /// use picoclaw::channels::TelegramChannel;
+    /// use zeptoclaw::bus::MessageBus;
+    /// use zeptoclaw::config::TelegramConfig;
+    /// use zeptoclaw::channels::TelegramChannel;
     ///
     /// let config = TelegramConfig {
     ///     enabled: true,
@@ -109,7 +110,7 @@ impl TelegramChannel {
             config,
             base_config,
             bus,
-            running: AtomicBool::new(false),
+            running: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
         }
     }
@@ -173,8 +174,8 @@ impl Channel for TelegramChannel {
         let token = self.config.token.clone();
         let bus = self.bus.clone();
         let allowlist = self.config.allow_from.clone();
-        let running = Arc::new(AtomicBool::new(true));
-        let running_clone = running.clone();
+        // Share the same running flag with the spawned task so state stays in sync
+        let running_clone = Arc::clone(&self.running);
 
         // Spawn the bot polling task
         tokio::spawn(async move {
@@ -300,10 +301,9 @@ impl Channel for TelegramChannel {
         }
 
         // Parse the chat ID
-        let chat_id: i64 = msg
-            .chat_id
-            .parse()
-            .map_err(|_| PicoError::Channel(format!("Invalid Telegram chat ID: {}", msg.chat_id)))?;
+        let chat_id: i64 = msg.chat_id.parse().map_err(|_| {
+            PicoError::Channel(format!("Invalid Telegram chat ID: {}", msg.chat_id))
+        })?;
 
         info!("Telegram: Sending message to chat {}", chat_id);
 

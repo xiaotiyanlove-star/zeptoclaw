@@ -1,6 +1,6 @@
 //! Session module - Session and conversation state management
 //!
-//! This module provides session management for PicoClaw, including:
+//! This module provides session management for ZeptoClaw, including:
 //! - In-memory session storage with async access
 //! - File-based persistence for sessions
 //! - Session creation, retrieval, and deletion
@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use picoclaw::session::{SessionManager, Message};
+//! use zeptoclaw::session::{SessionManager, Message};
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -51,7 +51,7 @@ use tokio::sync::RwLock;
 /// # Persistence
 ///
 /// When created with `new()`, sessions are persisted to disk in the
-/// `~/.picoclaw/sessions/` directory. Use `new_memory()` for testing
+/// `~/.zeptoclaw/sessions/` directory. Use `new_memory()` for testing
 /// or when persistence is not needed.
 pub struct SessionManager {
     /// In-memory cache of sessions
@@ -63,7 +63,7 @@ pub struct SessionManager {
 impl SessionManager {
     /// Create a new session manager with file-based persistence.
     ///
-    /// Sessions are stored in `~/.picoclaw/sessions/` as JSON files.
+    /// Sessions are stored in `~/.zeptoclaw/sessions/` as JSON files.
     /// The directory is created if it doesn't exist.
     ///
     /// # Errors
@@ -72,7 +72,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```no_run
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// let manager = SessionManager::new().unwrap();
     /// ```
@@ -92,7 +92,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// let manager = SessionManager::new_memory();
     /// ```
@@ -114,7 +114,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```no_run
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     /// use std::path::PathBuf;
     ///
     /// let manager = SessionManager::with_path(PathBuf::from("/tmp/sessions")).unwrap();
@@ -142,7 +142,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -230,7 +230,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{SessionManager, Message};
+    /// use zeptoclaw::session::{SessionManager, Message};
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -268,7 +268,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -306,7 +306,7 @@ impl SessionManager {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::SessionManager;
+    /// use zeptoclaw::session::SessionManager;
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -328,15 +328,18 @@ impl SessionManager {
         }
 
         // Get keys from disk if persistence is enabled
+        // We read each session file to get the actual key (not the sanitized filename)
         if let Some(ref storage_path) = self.storage_path {
             let mut dir_entries = tokio::fs::read_dir(storage_path).await?;
             while let Some(entry) = dir_entries.next_entry().await? {
                 let path = entry.path();
                 if path.extension().map(|e| e == "json").unwrap_or(false) {
-                    if let Some(stem) = path.file_stem() {
-                        let key = stem.to_string_lossy().to_string();
-                        if !keys.contains(&key) {
-                            keys.push(key);
+                    // Read the session file to get the actual key
+                    if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                        if let Ok(session) = serde_json::from_str::<Session>(&content) {
+                            if !keys.contains(&session.key) {
+                                keys.push(session.key);
+                            }
                         }
                     }
                 }
@@ -389,9 +392,62 @@ impl SessionManager {
 
     /// Sanitize a session key for use as a filename.
     ///
-    /// Replaces characters that are invalid in filenames with underscores.
+    /// Uses percent-encoding to ensure the mapping is bijective (one-to-one).
+    /// This prevents collisions where different keys would map to the same filename.
+    ///
+    /// For example:
+    /// - "telegram:chat123" → "telegram%3Achat123"
+    /// - "discord/server" → "discord%2Fserver"
+    ///
+    /// This is reversible via `unsanitize_key`, ensuring keys round-trip correctly.
     fn sanitize_key(key: &str) -> String {
-        key.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+        // Characters that are problematic in filenames across platforms
+        // We percent-encode them to make the mapping reversible
+        let mut result = String::with_capacity(key.len() * 3);
+        for c in key.chars() {
+            match c {
+                '/' => result.push_str("%2F"),
+                '\\' => result.push_str("%5C"),
+                ':' => result.push_str("%3A"),
+                '*' => result.push_str("%2A"),
+                '?' => result.push_str("%3F"),
+                '"' => result.push_str("%22"),
+                '<' => result.push_str("%3C"),
+                '>' => result.push_str("%3E"),
+                '|' => result.push_str("%7C"),
+                '%' => result.push_str("%25"), // Escape % itself to make it reversible
+                c => result.push(c),
+            }
+        }
+        result
+    }
+
+    /// Reverse the sanitization to recover the original key.
+    ///
+    /// This is the inverse of `sanitize_key`.
+    #[allow(dead_code)]
+    fn unsanitize_key(sanitized: &str) -> String {
+        let mut result = String::with_capacity(sanitized.len());
+        let mut chars = sanitized.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '%' {
+                // Try to read two hex digits
+                let hex: String = chars.by_ref().take(2).collect();
+                if hex.len() == 2 {
+                    if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                        result.push(byte as char);
+                        continue;
+                    }
+                }
+                // If parsing failed, just keep the % and the hex chars
+                result.push('%');
+                result.push_str(&hex);
+            } else {
+                result.push(c);
+            }
+        }
+        result
     }
 }
 
@@ -544,19 +600,19 @@ mod tests {
 
         let manager = SessionManager::with_path(storage_path.clone()).unwrap();
 
-        // Create and save
+        // Create and save (using a key without special chars to keep filename simple)
         let session = manager.get_or_create("delete-test").await.unwrap();
         manager.save(&session).await.unwrap();
 
-        // Verify file exists
+        // Verify file exists (filename matches key since no special chars)
         let file_path = storage_path.join("delete-test.json");
-        assert!(file_path.exists());
+        assert!(file_path.exists(), "Session file should exist after save");
 
         // Delete
         manager.delete("delete-test").await.unwrap();
 
         // Verify file is gone
-        assert!(!file_path.exists());
+        assert!(!file_path.exists(), "Session file should be deleted");
     }
 
     #[tokio::test]
@@ -584,13 +640,98 @@ mod tests {
 
     #[test]
     fn test_sanitize_key() {
+        // Simple keys pass through unchanged
         assert_eq!(SessionManager::sanitize_key("simple"), "simple");
-        assert_eq!(SessionManager::sanitize_key("telegram:chat123"), "telegram_chat123");
-        assert_eq!(SessionManager::sanitize_key("path/to/session"), "path_to_session");
+        // Special characters are percent-encoded
+        assert_eq!(
+            SessionManager::sanitize_key("telegram:chat123"),
+            "telegram%3Achat123"
+        );
+        assert_eq!(
+            SessionManager::sanitize_key("path/to/session"),
+            "path%2Fto%2Fsession"
+        );
         assert_eq!(
             SessionManager::sanitize_key("a:b/c\\d*e?f\"g<h>i|j"),
-            "a_b_c_d_e_f_g_h_i_j"
+            "a%3Ab%2Fc%5Cd%2Ae%3Ff%22g%3Ch%3Ei%7Cj"
         );
+        // Percent itself is escaped to make encoding reversible
+        assert_eq!(SessionManager::sanitize_key("100%done"), "100%25done");
+    }
+
+    #[test]
+    fn test_unsanitize_key() {
+        // Round-trip: sanitize then unsanitize should return original
+        let keys = [
+            "simple",
+            "telegram:chat123",
+            "path/to/session",
+            "a:b/c\\d*e?f\"g<h>i|j",
+            "100%done",
+            "multi%percent%%test",
+        ];
+        for key in &keys {
+            let sanitized = SessionManager::sanitize_key(key);
+            let unsanitized = SessionManager::unsanitize_key(&sanitized);
+            assert_eq!(
+                unsanitized, *key,
+                "Key '{}' should round-trip through sanitize/unsanitize",
+                key
+            );
+        }
+    }
+
+    #[test]
+    fn test_sanitize_key_no_collisions() {
+        // Keys that would collide with the old underscore-replacement approach
+        // should now produce different sanitized values
+        let key1 = "a:b";
+        let key2 = "a/b";
+        let key3 = "a_b"; // This one has an actual underscore
+
+        let sanitized1 = SessionManager::sanitize_key(key1);
+        let sanitized2 = SessionManager::sanitize_key(key2);
+        let sanitized3 = SessionManager::sanitize_key(key3);
+
+        assert_ne!(sanitized1, sanitized2, "a:b and a/b should not collide");
+        assert_ne!(sanitized1, sanitized3, "a:b and a_b should not collide");
+        assert_ne!(sanitized2, sanitized3, "a/b and a_b should not collide");
+
+        // Verify the actual values
+        assert_eq!(sanitized1, "a%3Ab");
+        assert_eq!(sanitized2, "a%2Fb");
+        assert_eq!(sanitized3, "a_b");
+    }
+
+    #[tokio::test]
+    async fn test_list_returns_original_keys_with_special_chars() {
+        // Regression test: list() should return original keys, not sanitized filenames
+        let temp_dir = TempDir::new().unwrap();
+        let storage_path = temp_dir.path().to_path_buf();
+
+        let manager = SessionManager::with_path(storage_path).unwrap();
+
+        // Create sessions with special characters in keys
+        let keys = ["telegram:chat123", "discord/server456", "slack:channel:789"];
+        for key in &keys {
+            let session = manager.get_or_create(key).await.unwrap();
+            manager.save(&session).await.unwrap();
+        }
+
+        // Clear cache to force reading from disk
+        manager.clear_cache().await;
+
+        // list() should return original keys, not sanitized filenames
+        let listed_keys = manager.list().await.unwrap();
+        assert_eq!(listed_keys.len(), 3);
+        for key in &keys {
+            assert!(
+                listed_keys.contains(&key.to_string()),
+                "list() should contain original key '{}', got {:?}",
+                key,
+                listed_keys
+            );
+        }
     }
 
     #[tokio::test]

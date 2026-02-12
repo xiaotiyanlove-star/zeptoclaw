@@ -1,4 +1,4 @@
-//! Tool registry for PicoClaw
+//! Tool registry for ZeptoClaw
 //!
 //! This module provides the `ToolRegistry` struct for managing and executing tools.
 //! Tools can be registered, looked up by name, and executed with context.
@@ -22,7 +22,7 @@ use super::{Tool, ToolContext};
 /// # Example
 ///
 /// ```rust
-/// use picoclaw::tools::{ToolRegistry, EchoTool};
+/// use zeptoclaw::tools::{ToolRegistry, EchoTool};
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
@@ -44,7 +44,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::ToolRegistry;
+    /// use zeptoclaw::tools::ToolRegistry;
     ///
     /// let registry = ToolRegistry::new();
     /// assert_eq!(registry.names().len(), 0);
@@ -64,7 +64,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// registry.register(Box::new(EchoTool));
@@ -86,7 +86,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// registry.register(Box::new(EchoTool));
@@ -111,7 +111,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     /// use serde_json::json;
     ///
     /// # tokio_test::block_on(async {
@@ -124,7 +124,8 @@ impl ToolRegistry {
     /// # });
     /// ```
     pub async fn execute(&self, name: &str, args: Value) -> Result<String> {
-        self.execute_with_context(name, args, &ToolContext::default()).await
+        self.execute_with_context(name, args, &ToolContext::default())
+            .await
     }
 
     /// Execute a tool by name with a specific context.
@@ -140,7 +141,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, ToolContext, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, ToolContext, EchoTool};
     /// use serde_json::json;
     ///
     /// # tokio_test::block_on(async {
@@ -196,7 +197,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// registry.register(Box::new(EchoTool));
@@ -223,7 +224,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// registry.register(Box::new(EchoTool));
@@ -245,7 +246,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// assert!(!registry.has("echo"));
@@ -264,7 +265,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// assert_eq!(registry.len(), 0);
@@ -283,7 +284,7 @@ impl ToolRegistry {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::{ToolRegistry, EchoTool};
+    /// use zeptoclaw::tools::{ToolRegistry, EchoTool};
     ///
     /// let mut registry = ToolRegistry::new();
     /// assert!(registry.is_empty());
@@ -381,7 +382,10 @@ mod tests {
         let definitions = registry.definitions();
         assert_eq!(definitions.len(), 1);
         assert_eq!(definitions[0].name, "echo");
-        assert_eq!(definitions[0].description, "Echoes back the provided message");
+        assert_eq!(
+            definitions[0].description,
+            "Echoes back the provided message"
+        );
         assert!(definitions[0].parameters.is_object());
     }
 

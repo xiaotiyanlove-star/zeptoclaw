@@ -1,6 +1,6 @@
 .PHONY: build build-release install clean test lint fmt check all
 
-BINARY_NAME := picoclaw
+BINARY_NAME := zeptoclaw
 BUILD_DIR := target
 INSTALL_DIR := $(HOME)/.local/bin
 
@@ -73,7 +73,7 @@ run-gateway:
 
 # Show help
 help:
-	@echo "PicoClaw Rust - Build Commands"
+	@echo "ZeptoClaw Rust - Build Commands"
 	@echo ""
 	@echo "Development:"
 	@echo "  make build          - Debug build"

@@ -1,4 +1,4 @@
-//! Channel Manager for PicoClaw
+//! Channel Manager for ZeptoClaw
 //!
 //! This module provides the `ChannelManager` which is responsible for:
 //! - Registering and managing multiple communication channels
@@ -7,7 +7,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
+use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::bus::{MessageBus, OutboundMessage};
@@ -45,9 +46,9 @@ use super::Channel;
 ///
 /// ```ignore
 /// use std::sync::Arc;
-/// use picoclaw::bus::MessageBus;
-/// use picoclaw::config::Config;
-/// use picoclaw::channels::ChannelManager;
+/// use zeptoclaw::bus::MessageBus;
+/// use zeptoclaw::config::Config;
+/// use zeptoclaw::channels::ChannelManager;
 ///
 /// #[tokio::main]
 /// async fn main() {
@@ -70,6 +71,12 @@ pub struct ChannelManager {
     /// Global configuration
     #[allow(dead_code)]
     config: Config,
+    /// Shutdown signal sender for dispatcher
+    shutdown_tx: watch::Sender<bool>,
+    /// Shutdown signal receiver (cloneable)
+    shutdown_rx: watch::Receiver<bool>,
+    /// Handle to the dispatcher task (if running)
+    dispatcher_handle: Arc<RwLock<Option<JoinHandle<()>>>>,
 }
 
 impl ChannelManager {
@@ -84,19 +91,23 @@ impl ChannelManager {
     ///
     /// ```
     /// use std::sync::Arc;
-    /// use picoclaw::bus::MessageBus;
-    /// use picoclaw::config::Config;
-    /// use picoclaw::channels::ChannelManager;
+    /// use zeptoclaw::bus::MessageBus;
+    /// use zeptoclaw::config::Config;
+    /// use zeptoclaw::channels::ChannelManager;
     ///
     /// let bus = Arc::new(MessageBus::new());
     /// let config = Config::default();
     /// let manager = ChannelManager::new(bus, config);
     /// ```
     pub fn new(bus: Arc<MessageBus>, config: Config) -> Self {
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
         Self {
             channels: Arc::new(RwLock::new(HashMap::new())),
             bus,
             config,
+            shutdown_tx,
+            shutdown_rx,
+            dispatcher_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -127,9 +138,9 @@ impl ChannelManager {
     ///
     /// ```
     /// use std::sync::Arc;
-    /// use picoclaw::bus::MessageBus;
-    /// use picoclaw::config::Config;
-    /// use picoclaw::channels::ChannelManager;
+    /// use zeptoclaw::bus::MessageBus;
+    /// use zeptoclaw::config::Config;
+    /// use zeptoclaw::channels::ChannelManager;
     ///
     /// # tokio_test::block_on(async {
     /// let bus = Arc::new(MessageBus::new());
@@ -183,6 +194,17 @@ impl ChannelManager {
     /// manager.start_all().await?;
     /// ```
     pub async fn start_all(&self) -> Result<()> {
+        // Check if dispatcher is already running to prevent multiple dispatcher tasks
+        {
+            let dispatcher_handle = self.dispatcher_handle.read().await;
+            if let Some(ref handle) = *dispatcher_handle {
+                if !handle.is_finished() {
+                    warn!("Dispatcher already running, skipping start");
+                    return Ok(());
+                }
+            }
+        }
+
         let mut channels = self.channels.write().await;
         for (name, channel) in channels.iter_mut() {
             info!("Starting channel: {}", name);
@@ -192,12 +214,20 @@ impl ChannelManager {
         }
         drop(channels); // Release the write lock before spawning
 
+        // Reset shutdown signal for fresh start
+        let _ = self.shutdown_tx.send(false);
+
         // Start outbound dispatcher
         let bus = self.bus.clone();
         let channels_ref = self.channels.clone();
-        tokio::spawn(async move {
-            dispatch_outbound(bus, channels_ref).await;
+        let shutdown_rx = self.shutdown_rx.clone();
+        let handle = tokio::spawn(async move {
+            dispatch_outbound(bus, channels_ref, shutdown_rx).await;
         });
+
+        // Store the handle so we can wait for it to stop
+        let mut dispatcher_handle = self.dispatcher_handle.write().await;
+        *dispatcher_handle = Some(handle);
 
         Ok(())
     }
@@ -218,6 +248,20 @@ impl ChannelManager {
     /// manager.stop_all().await?;
     /// ```
     pub async fn stop_all(&self) -> Result<()> {
+        // Signal the dispatcher to stop
+        info!("Signaling dispatcher to stop");
+        let _ = self.shutdown_tx.send(true);
+
+        // Wait for dispatcher to finish (with timeout)
+        let mut dispatcher_handle = self.dispatcher_handle.write().await;
+        if let Some(handle) = dispatcher_handle.take() {
+            match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
+                Ok(_) => info!("Dispatcher stopped cleanly"),
+                Err(_) => warn!("Dispatcher did not stop within timeout"),
+            }
+        }
+
+        // Stop all channels
         let mut channels = self.channels.write().await;
         for (name, channel) in channels.iter_mut() {
             info!("Stopping channel: {}", name);
@@ -266,29 +310,49 @@ impl ChannelManager {
 ///
 /// This function runs in a loop, consuming outbound messages from the bus
 /// and routing them to the appropriate channel based on the message's
-/// `channel` field.
+/// `channel` field. It stops when the shutdown signal is received.
 ///
 /// # Arguments
 ///
 /// * `bus` - The message bus to consume from
 /// * `channels` - The shared map of channels
+/// * `shutdown_rx` - Receiver for shutdown signals
 async fn dispatch_outbound(
     bus: Arc<MessageBus>,
     channels: Arc<RwLock<HashMap<String, Box<dyn Channel>>>>,
+    mut shutdown_rx: watch::Receiver<bool>,
 ) {
+    info!("Outbound dispatcher started");
     loop {
-        if let Some(msg) = bus.consume_outbound().await {
-            let channel_name = msg.channel.clone();
-            let channels = channels.read().await;
-            if let Some(channel) = channels.get(&channel_name) {
-                if let Err(e) = channel.send(msg.clone()).await {
-                    error!("Failed to send message to {}: {}", channel_name, e);
+        tokio::select! {
+            // Check for shutdown signal
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    info!("Outbound dispatcher received shutdown signal");
+                    break;
                 }
-            } else {
-                warn!("Unknown channel for outbound message: {}", channel_name);
+            }
+            // Wait for outbound messages
+            msg = bus.consume_outbound() => {
+                if let Some(msg) = msg {
+                    let channel_name = msg.channel.clone();
+                    let channels = channels.read().await;
+                    if let Some(channel) = channels.get(&channel_name) {
+                        if let Err(e) = channel.send(msg.clone()).await {
+                            error!("Failed to send message to {}: {}", channel_name, e);
+                        }
+                    } else {
+                        warn!("Unknown channel for outbound message: {}", channel_name);
+                    }
+                } else {
+                    // Channel closed
+                    info!("Outbound channel closed");
+                    break;
+                }
             }
         }
     }
+    info!("Outbound dispatcher stopped");
 }
 
 #[cfg(test)]
@@ -379,8 +443,12 @@ mod tests {
         let config = Config::default();
         let manager = ChannelManager::new(bus, config);
 
-        manager.register(Box::new(MockChannel::new("telegram"))).await;
-        manager.register(Box::new(MockChannel::new("discord"))).await;
+        manager
+            .register(Box::new(MockChannel::new("telegram")))
+            .await;
+        manager
+            .register(Box::new(MockChannel::new("discord")))
+            .await;
         manager.register(Box::new(MockChannel::new("slack"))).await;
 
         assert_eq!(manager.channel_count().await, 3);
@@ -413,6 +481,26 @@ mod tests {
 
         manager.register(Box::new(MockChannel::new("test"))).await;
         manager.start_all().await.unwrap();
+        manager.stop_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_double_start_prevented() {
+        // Regression test: calling start_all() twice should not spawn multiple dispatchers
+        let bus = Arc::new(MessageBus::new());
+        let config = Config::default();
+        let manager = ChannelManager::new(bus, config);
+
+        manager.register(Box::new(MockChannel::new("test"))).await;
+
+        // First start
+        manager.start_all().await.unwrap();
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        // Second start should be a no-op (dispatcher already running)
+        manager.start_all().await.unwrap();
+
+        // Clean shutdown
         manager.stop_all().await.unwrap();
     }
 

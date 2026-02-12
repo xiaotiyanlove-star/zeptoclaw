@@ -1,4 +1,4 @@
-//! Tool types for PicoClaw
+//! Tool types for ZeptoClaw
 //!
 //! This module defines the core types for tool execution, including the `Tool` trait
 //! that all tools must implement, and the `ToolContext` struct that provides
@@ -19,8 +19,8 @@ use crate::error::Result;
 /// ```rust
 /// use async_trait::async_trait;
 /// use serde_json::Value;
-/// use picoclaw::tools::{Tool, ToolContext};
-/// use picoclaw::error::Result;
+/// use zeptoclaw::tools::{Tool, ToolContext};
+/// use zeptoclaw::error::Result;
 ///
 /// struct MyTool;
 ///
@@ -90,7 +90,7 @@ impl ToolContext {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::ToolContext;
+    /// use zeptoclaw::tools::ToolContext;
     ///
     /// let ctx = ToolContext::new();
     /// assert!(ctx.channel.is_none());
@@ -107,7 +107,7 @@ impl ToolContext {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::ToolContext;
+    /// use zeptoclaw::tools::ToolContext;
     ///
     /// let ctx = ToolContext::new()
     ///     .with_channel("telegram", "123456");
@@ -127,7 +127,7 @@ impl ToolContext {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::tools::ToolContext;
+    /// use zeptoclaw::tools::ToolContext;
     ///
     /// let ctx = ToolContext::new()
     ///     .with_workspace("/home/user/project");

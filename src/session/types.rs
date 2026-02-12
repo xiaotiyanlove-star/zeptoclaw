@@ -1,4 +1,4 @@
-//! Session types for PicoClaw
+//! Session types for ZeptoClaw
 //!
 //! This module defines the core types for session and conversation management,
 //! including messages, roles, and tool calls.
@@ -32,7 +32,7 @@ impl Session {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::Session;
+    /// use zeptoclaw::session::Session;
     ///
     /// let session = Session::new("telegram:chat123");
     /// assert!(session.messages.is_empty());
@@ -57,7 +57,7 @@ impl Session {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Session, Message};
+    /// use zeptoclaw::session::{Session, Message};
     ///
     /// let mut session = Session::new("test");
     /// session.add_message(Message::user("Hello!"));
@@ -74,7 +74,7 @@ impl Session {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Session, Message};
+    /// use zeptoclaw::session::{Session, Message};
     ///
     /// let mut session = Session::new("test");
     /// session.add_message(Message::user("Hello!"));
@@ -144,7 +144,7 @@ impl Message {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Message, Role};
+    /// use zeptoclaw::session::{Message, Role};
     ///
     /// let msg = Message::user("Hello, assistant!");
     /// assert_eq!(msg.role, Role::User);
@@ -165,7 +165,7 @@ impl Message {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Message, Role};
+    /// use zeptoclaw::session::{Message, Role};
     ///
     /// let msg = Message::assistant("Hello, user!");
     /// assert_eq!(msg.role, Role::Assistant);
@@ -188,7 +188,7 @@ impl Message {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Message, Role};
+    /// use zeptoclaw::session::{Message, Role};
     ///
     /// let msg = Message::system("You are a helpful assistant.");
     /// assert_eq!(msg.role, Role::System);
@@ -212,7 +212,7 @@ impl Message {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Message, Role};
+    /// use zeptoclaw::session::{Message, Role};
     ///
     /// let msg = Message::tool_result("call_123", "Tool executed successfully");
     /// assert_eq!(msg.role, Role::Tool);
@@ -235,7 +235,7 @@ impl Message {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::{Message, ToolCall, Role};
+    /// use zeptoclaw::session::{Message, ToolCall, Role};
     ///
     /// let tool_call = ToolCall::new("call_1", "search", r#"{"query": "rust"}"#);
     /// let msg = Message::assistant_with_tools("Let me search for that.", vec![tool_call]);
@@ -252,7 +252,10 @@ impl Message {
 
     /// Check if this message has tool calls.
     pub fn has_tool_calls(&self) -> bool {
-        self.tool_calls.as_ref().map(|tc| !tc.is_empty()).unwrap_or(false)
+        self.tool_calls
+            .as_ref()
+            .map(|tc| !tc.is_empty())
+            .unwrap_or(false)
     }
 
     /// Check if this is a tool result message.
@@ -309,7 +312,7 @@ impl ToolCall {
     ///
     /// # Example
     /// ```
-    /// use picoclaw::session::ToolCall;
+    /// use zeptoclaw::session::ToolCall;
     ///
     /// let call = ToolCall::new("call_123", "web_search", r#"{"query": "rust programming"}"#);
     /// assert_eq!(call.name, "web_search");

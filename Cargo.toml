@@ -1,12 +1,12 @@
 [package]
-name = "picoclaw"
+name = "zeptoclaw"
 version = "0.1.0"
 edition = "2021"
-authors = ["PicoClaw Contributors"]
+authors = ["ZeptoClaw Contributors"]
 description = "Ultra-lightweight personal AI assistant framework"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/picoclaw/picoclaw"
+repository = "https://github.com/zeptoclaw/zeptoclaw"
 
 [dependencies]
 # Async runtime
@@ -68,5 +68,5 @@ strip = true
 panic = "abort"
 
 [[bin]]
-name = "picoclaw"
+name = "zeptoclaw"
 path = "src/main.rs"

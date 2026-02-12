@@ -1,7 +1,7 @@
-//! Configuration management for PicoClaw
+//! Configuration management for ZeptoClaw
 //!
 //! This module provides configuration loading, saving, and global state management.
-//! Configuration is loaded from `~/.picoclaw/config.json` with environment variable overrides.
+//! Configuration is loaded from `~/.zeptoclaw/config.json` with environment variable overrides.
 
 mod types;
 
@@ -16,14 +16,14 @@ use std::sync::RwLock;
 static CONFIG: OnceCell<RwLock<Config>> = OnceCell::new();
 
 impl Config {
-    /// Returns the PicoClaw configuration directory path (~/.picoclaw)
+    /// Returns the ZeptoClaw configuration directory path (~/.zeptoclaw)
     pub fn dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".picoclaw")
+            .join(".zeptoclaw")
     }
 
-    /// Returns the path to the config file (~/.picoclaw/config.json)
+    /// Returns the path to the config file (~/.zeptoclaw/config.json)
     pub fn path() -> PathBuf {
         Self::dir().join("config.json")
     }
@@ -32,7 +32,7 @@ impl Config {
     ///
     /// If the config file doesn't exist, returns default configuration.
     /// Environment variables can override config values using the pattern:
-    /// `PICOCLAW_SECTION_SUBSECTION_KEY`
+    /// `ZEPTOCLAW_SECTION_SUBSECTION_KEY`
     pub fn load() -> Result<Self> {
         Self::load_from_path(&Self::path())
     }
@@ -54,36 +54,36 @@ impl Config {
 
     /// Apply environment variable overrides to the configuration.
     ///
-    /// Environment variables follow the pattern: PICOCLAW_SECTION_SUBSECTION_KEY
+    /// Environment variables follow the pattern: ZEPTOCLAW_SECTION_SUBSECTION_KEY
     fn apply_env_overrides(&mut self) {
         // Agent defaults
-        if let Ok(val) = std::env::var("PICOCLAW_AGENTS_DEFAULTS_WORKSPACE") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_AGENTS_DEFAULTS_WORKSPACE") {
             self.agents.defaults.workspace = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_AGENTS_DEFAULTS_MODEL") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_AGENTS_DEFAULTS_MODEL") {
             self.agents.defaults.model = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_AGENTS_DEFAULTS_MAX_TOKENS") {
             if let Ok(v) = val.parse() {
                 self.agents.defaults.max_tokens = v;
             }
         }
-        if let Ok(val) = std::env::var("PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_AGENTS_DEFAULTS_TEMPERATURE") {
             if let Ok(v) = val.parse() {
                 self.agents.defaults.temperature = v;
             }
         }
-        if let Ok(val) = std::env::var("PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS") {
             if let Ok(v) = val.parse() {
                 self.agents.defaults.max_tool_iterations = v;
             }
         }
 
         // Gateway
-        if let Ok(val) = std::env::var("PICOCLAW_GATEWAY_HOST") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_GATEWAY_HOST") {
             self.gateway.host = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_GATEWAY_PORT") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_GATEWAY_PORT") {
             if let Ok(v) = val.parse() {
                 self.gateway.port = v;
             }
@@ -99,54 +99,84 @@ impl Config {
     /// Apply provider-specific environment variable overrides
     fn apply_provider_env_overrides(&mut self) {
         // Anthropic
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_ANTHROPIC_API_KEY") {
-            let provider = self.providers.anthropic.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_ANTHROPIC_API_KEY") {
+            let provider = self
+                .providers
+                .anthropic
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_ANTHROPIC_API_BASE") {
-            let provider = self.providers.anthropic.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_ANTHROPIC_API_BASE") {
+            let provider = self
+                .providers
+                .anthropic
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_base = Some(val);
         }
 
         // OpenAI
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_OPENAI_API_KEY") {
-            let provider = self.providers.openai.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_OPENAI_API_KEY") {
+            let provider = self
+                .providers
+                .openai
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_OPENAI_API_BASE") {
-            let provider = self.providers.openai.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_OPENAI_API_BASE") {
+            let provider = self
+                .providers
+                .openai
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_base = Some(val);
         }
 
         // OpenRouter
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_OPENROUTER_API_KEY") {
-            let provider = self.providers.openrouter.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_OPENROUTER_API_KEY") {
+            let provider = self
+                .providers
+                .openrouter
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_OPENROUTER_API_BASE") {
-            let provider = self.providers.openrouter.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_OPENROUTER_API_BASE") {
+            let provider = self
+                .providers
+                .openrouter
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_base = Some(val);
         }
 
         // Groq
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_GROQ_API_KEY") {
-            let provider = self.providers.groq.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_GROQ_API_KEY") {
+            let provider = self
+                .providers
+                .groq
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
 
         // Zhipu
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_ZHIPU_API_KEY") {
-            let provider = self.providers.zhipu.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_ZHIPU_API_KEY") {
+            let provider = self
+                .providers
+                .zhipu
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_ZHIPU_API_BASE") {
-            let provider = self.providers.zhipu.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_ZHIPU_API_BASE") {
+            let provider = self
+                .providers
+                .zhipu
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_base = Some(val);
         }
 
         // Gemini
-        if let Ok(val) = std::env::var("PICOCLAW_PROVIDERS_GEMINI_API_KEY") {
-            let provider = self.providers.gemini.get_or_insert_with(ProviderConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_PROVIDERS_GEMINI_API_KEY") {
+            let provider = self
+                .providers
+                .gemini
+                .get_or_insert_with(ProviderConfig::default);
             provider.api_key = Some(val);
         }
     }
@@ -154,39 +184,51 @@ impl Config {
     /// Apply channel-specific environment variable overrides
     fn apply_channel_env_overrides(&mut self) {
         // Telegram
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_TELEGRAM_TOKEN") {
-            let channel = self.channels.telegram.get_or_insert_with(TelegramConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_TELEGRAM_TOKEN") {
+            let channel = self
+                .channels
+                .telegram
+                .get_or_insert_with(TelegramConfig::default);
             channel.token = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_TELEGRAM_ENABLED") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_TELEGRAM_ENABLED") {
             if let Ok(enabled) = val.parse() {
-                let channel = self.channels.telegram.get_or_insert_with(TelegramConfig::default);
+                let channel = self
+                    .channels
+                    .telegram
+                    .get_or_insert_with(TelegramConfig::default);
                 channel.enabled = enabled;
             }
         }
 
         // Discord
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_DISCORD_TOKEN") {
-            let channel = self.channels.discord.get_or_insert_with(DiscordConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_DISCORD_TOKEN") {
+            let channel = self
+                .channels
+                .discord
+                .get_or_insert_with(DiscordConfig::default);
             channel.token = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_DISCORD_ENABLED") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_DISCORD_ENABLED") {
             if let Ok(enabled) = val.parse() {
-                let channel = self.channels.discord.get_or_insert_with(DiscordConfig::default);
+                let channel = self
+                    .channels
+                    .discord
+                    .get_or_insert_with(DiscordConfig::default);
                 channel.enabled = enabled;
             }
         }
 
         // Slack
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_SLACK_BOT_TOKEN") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_SLACK_BOT_TOKEN") {
             let channel = self.channels.slack.get_or_insert_with(SlackConfig::default);
             channel.bot_token = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_SLACK_APP_TOKEN") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_SLACK_APP_TOKEN") {
             let channel = self.channels.slack.get_or_insert_with(SlackConfig::default);
             channel.app_token = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_SLACK_ENABLED") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_SLACK_ENABLED") {
             if let Ok(enabled) = val.parse() {
                 let channel = self.channels.slack.get_or_insert_with(SlackConfig::default);
                 channel.enabled = enabled;
@@ -194,13 +236,19 @@ impl Config {
         }
 
         // WhatsApp
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_WHATSAPP_BRIDGE_URL") {
-            let channel = self.channels.whatsapp.get_or_insert_with(WhatsAppConfig::default);
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_WHATSAPP_BRIDGE_URL") {
+            let channel = self
+                .channels
+                .whatsapp
+                .get_or_insert_with(WhatsAppConfig::default);
             channel.bridge_url = val;
         }
-        if let Ok(val) = std::env::var("PICOCLAW_CHANNELS_WHATSAPP_ENABLED") {
+        if let Ok(val) = std::env::var("ZEPTOCLAW_CHANNELS_WHATSAPP_ENABLED") {
             if let Ok(enabled) = val.parse() {
-                let channel = self.channels.whatsapp.get_or_insert_with(WhatsAppConfig::default);
+                let channel = self
+                    .channels
+                    .whatsapp
+                    .get_or_insert_with(WhatsAppConfig::default);
                 channel.enabled = enabled;
             }
         }
@@ -290,12 +338,10 @@ impl Config {
             &self.providers.groq,
         ];
 
-        for provider in providers {
-            if let Some(config) = provider {
-                if let Some(ref key) = config.api_key {
-                    if !key.is_empty() {
-                        return Some(key.clone());
-                    }
+        for config in providers.into_iter().flatten() {
+            if let Some(ref key) = config.api_key {
+                if !key.is_empty() {
+                    return Some(key.clone());
                 }
             }
         }
@@ -306,23 +352,39 @@ impl Config {
     pub fn get_api_base(&self) -> Option<String> {
         // OpenRouter
         if let Some(ref config) = self.providers.openrouter {
-            if config.api_key.as_ref().map(|k| !k.is_empty()).unwrap_or(false) {
-                return config.api_base.clone().or_else(|| {
-                    Some("https://openrouter.ai/api/v1".to_string())
-                });
+            if config
+                .api_key
+                .as_ref()
+                .map(|k| !k.is_empty())
+                .unwrap_or(false)
+            {
+                return config
+                    .api_base
+                    .clone()
+                    .or_else(|| Some("https://openrouter.ai/api/v1".to_string()));
             }
         }
 
         // Zhipu
         if let Some(ref config) = self.providers.zhipu {
-            if config.api_key.as_ref().map(|k| !k.is_empty()).unwrap_or(false) {
+            if config
+                .api_key
+                .as_ref()
+                .map(|k| !k.is_empty())
+                .unwrap_or(false)
+            {
                 return config.api_base.clone();
             }
         }
 
         // VLLM
         if let Some(ref config) = self.providers.vllm {
-            if config.api_key.as_ref().map(|k| !k.is_empty()).unwrap_or(false) {
+            if config
+                .api_key
+                .as_ref()
+                .map(|k| !k.is_empty())
+                .unwrap_or(false)
+            {
                 return config.api_base.clone();
             }
         }
@@ -361,7 +423,7 @@ mod tests {
         assert_eq!(config.agents.defaults.max_tokens, 8096);
         assert_eq!(config.agents.defaults.temperature, 0.7);
         assert_eq!(config.agents.defaults.max_tool_iterations, 20);
-        assert_eq!(config.agents.defaults.workspace, "~/.picoclaw/workspace");
+        assert_eq!(config.agents.defaults.workspace, "~/.zeptoclaw/workspace");
         assert_eq!(config.gateway.host, "0.0.0.0");
         assert_eq!(config.gateway.port, 8080);
     }
@@ -400,8 +462,8 @@ mod tests {
         let home = dirs::home_dir().unwrap();
 
         // Test ~ expansion
-        let expanded = expand_home("~/.picoclaw");
-        assert_eq!(expanded, home.join(".picoclaw"));
+        let expanded = expand_home("~/.zeptoclaw");
+        assert_eq!(expanded, home.join(".zeptoclaw"));
 
         // Test ~/path expansion
         let expanded = expand_home("~/some/path");
@@ -425,21 +487,21 @@ mod tests {
         let config = Config::default();
         let workspace = config.workspace_path();
         let home = dirs::home_dir().unwrap();
-        assert_eq!(workspace, home.join(".picoclaw/workspace"));
+        assert_eq!(workspace, home.join(".zeptoclaw/workspace"));
     }
 
     #[test]
     fn test_config_dir() {
         let dir = Config::dir();
         let home = dirs::home_dir().unwrap();
-        assert_eq!(dir, home.join(".picoclaw"));
+        assert_eq!(dir, home.join(".zeptoclaw"));
     }
 
     #[test]
     fn test_config_path() {
         let path = Config::path();
         let home = dirs::home_dir().unwrap();
-        assert_eq!(path, home.join(".picoclaw/config.json"));
+        assert_eq!(path, home.join(".zeptoclaw/config.json"));
     }
 
     #[test]
@@ -489,7 +551,10 @@ mod tests {
 
         let openai = config.providers.openai.unwrap();
         assert_eq!(openai.api_key, Some("sk-xxx".to_string()));
-        assert_eq!(openai.api_base, Some("https://api.openai.com/v1".to_string()));
+        assert_eq!(
+            openai.api_base,
+            Some("https://api.openai.com/v1".to_string())
+        );
     }
 
     #[test]
@@ -517,8 +582,8 @@ mod tests {
     #[test]
     fn test_env_override() {
         // Set env var
-        env::set_var("PICOCLAW_AGENTS_DEFAULTS_MODEL", "test-model");
-        env::set_var("PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS", "1000");
+        env::set_var("ZEPTOCLAW_AGENTS_DEFAULTS_MODEL", "test-model");
+        env::set_var("ZEPTOCLAW_AGENTS_DEFAULTS_MAX_TOKENS", "1000");
 
         let mut config = Config::default();
         config.apply_env_overrides();
@@ -527,8 +592,8 @@ mod tests {
         assert_eq!(config.agents.defaults.max_tokens, 1000);
 
         // Clean up
-        env::remove_var("PICOCLAW_AGENTS_DEFAULTS_MODEL");
-        env::remove_var("PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS");
+        env::remove_var("ZEPTOCLAW_AGENTS_DEFAULTS_MODEL");
+        env::remove_var("ZEPTOCLAW_AGENTS_DEFAULTS_MAX_TOKENS");
     }
 
     #[test]
@@ -545,7 +610,10 @@ mod tests {
         }"#;
         let config: Config = serde_json::from_str(json).unwrap();
 
-        assert_eq!(config.tools.web.search.api_key, Some("search-key".to_string()));
+        assert_eq!(
+            config.tools.web.search.api_key,
+            Some("search-key".to_string())
+        );
         assert_eq!(config.tools.web.search.max_results, 10);
     }
 
@@ -561,7 +629,7 @@ mod tests {
         use std::fs;
 
         // Create a temp directory
-        let temp_dir = std::env::temp_dir().join("picoclaw_test");
+        let temp_dir = std::env::temp_dir().join("zeptoclaw_test");
         fs::create_dir_all(&temp_dir).unwrap();
         let config_path = temp_dir.join("config.json");
 

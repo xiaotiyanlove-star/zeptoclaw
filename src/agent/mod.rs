@@ -1,7 +1,7 @@
 //! Agent module - Core AI agent logic and conversation handling
 //!
 //! This module provides the core agent loop and context building functionality
-//! for PicoClaw. The agent is responsible for:
+//! for ZeptoClaw. The agent is responsible for:
 //!
 //! - Processing inbound messages from channels
 //! - Building conversation context with system prompts and history
@@ -29,12 +29,12 @@
 //!
 //! ```rust,ignore
 //! use std::sync::Arc;
-//! use picoclaw::agent::AgentLoop;
-//! use picoclaw::bus::MessageBus;
-//! use picoclaw::config::Config;
-//! use picoclaw::session::SessionManager;
-//! use picoclaw::providers::ClaudeProvider;
-//! use picoclaw::tools::EchoTool;
+//! use zeptoclaw::agent::AgentLoop;
+//! use zeptoclaw::bus::MessageBus;
+//! use zeptoclaw::config::Config;
+//! use zeptoclaw::session::SessionManager;
+//! use zeptoclaw::providers::ClaudeProvider;
+//! use zeptoclaw::tools::EchoTool;
 //!
 //! async fn run_agent() {
 //!     let config = Config::default();
