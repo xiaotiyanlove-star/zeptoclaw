@@ -41,7 +41,10 @@ pub async fn register_configured_channels(
                 warn!("Slack channel enabled but bot token is empty");
             } else {
                 manager
-                    .register(Box::new(SlackChannel::new(slack_config.clone())))
+                    .register(Box::new(SlackChannel::new(
+                        slack_config.clone(),
+                        bus.clone(),
+                    )))
                     .await;
                 info!("Registered Slack channel");
             }

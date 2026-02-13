@@ -33,8 +33,8 @@ use zeptoclaw::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, Writ
 use zeptoclaw::tools::shell::ShellTool;
 use zeptoclaw::tools::spawn::SpawnTool;
 use zeptoclaw::tools::{
-    EchoTool, GoogleSheetsTool, MemoryGetTool, MemorySearchTool, MessageTool, WebFetchTool,
-    WebSearchTool, WhatsAppTool,
+    EchoTool, GoogleSheetsTool, MemoryGetTool, MemorySearchTool, MessageTool, R8rTool,
+    WebFetchTool, WebSearchTool, WhatsAppTool,
 };
 
 #[derive(Parser)]
@@ -867,6 +867,7 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
             agent.bus().clone(),
         )))
         .await;
+    agent.register_tool(Box::new(R8rTool::default())).await;
 
     info!("Registered {} tools", agent.tool_count().await);
 
@@ -1831,7 +1832,10 @@ async fn cmd_status() -> Result<()> {
         }
     }
     println!("  Timeout: {}s", config.container_agent.timeout_secs);
-    println!("  Max concurrent: {}", config.container_agent.max_concurrent);
+    println!(
+        "  Max concurrent: {}",
+        config.container_agent.max_concurrent
+    );
     println!();
 
     // Runtime info
@@ -1947,6 +1951,7 @@ async fn cmd_status() -> Result<()> {
     }
     println!("  - web_fetch");
     println!("  - message");
+    println!("  - r8r");
     if config
         .tools
         .whatsapp

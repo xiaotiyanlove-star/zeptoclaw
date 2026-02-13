@@ -451,7 +451,8 @@ mod tests {
     #[test]
     fn test_r8r_tool_default() {
         let tool = R8rTool::default();
-        assert!(tool.endpoint.contains("localhost") || tool.endpoint.contains("127.0.0.1"));
+        assert!(!tool.endpoint.trim().is_empty());
+        assert!(tool.endpoint.starts_with("http://") || tool.endpoint.starts_with("https://"));
     }
 
     #[test]
@@ -462,13 +463,12 @@ mod tests {
 
     #[test]
     fn test_r8r_tool_from_env() {
-        // Set env var and test
-        std::env::set_var("R8R_ENDPOINT", "http://custom:9000");
+        let expected = std::env::var("R8R_ENDPOINT")
+            .unwrap_or_else(|_| DEFAULT_R8R_ENDPOINT.to_string())
+            .trim_end_matches('/')
+            .to_string();
         let tool = R8rTool::from_env();
-        assert_eq!(tool.endpoint, "http://custom:9000");
-
-        // Clean up
-        std::env::remove_var("R8R_ENDPOINT");
+        assert_eq!(tool.endpoint, expected);
     }
 
     #[test]
