@@ -20,3 +20,6 @@ target/
 
 # OS
 .DS_Store
+
+# External references
+external/
