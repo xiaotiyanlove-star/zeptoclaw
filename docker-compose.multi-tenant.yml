@@ -1,0 +1,128 @@
+# ZeptoClaw Multi-Tenant Deployment
+#
+# Each tenant runs in their own container with complete isolation.
+# ZeptoClaw is ~4MB binary, ~6MB RSS - hundreds of tenants on a single VPS.
+#
+# Setup:
+#   1. Build the image:        docker build -t zeptoclaw .
+#   2. Create tenant configs:  ./scripts/add-tenant.sh tenant-name BOT_TOKEN API_KEY
+#   3. Start all tenants:      docker compose -f docker-compose.multi-tenant.yml up -d
+#   4. Add more tenants:       Run add-tenant.sh again, then docker compose up -d
+#
+# Each tenant gets:
+#   - Own container (process + filesystem isolation)
+#   - Own config.json (API keys, bot token, tool settings)
+#   - Own persistent volume (sessions, memory, workspace)
+#   - Own resource limits (CPU, memory)
+
+x-zeptoclaw-defaults: &defaults
+  image: zeptoclaw:latest
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  deploy:
+    resources:
+      limits:
+        memory: 128M
+        cpus: "0.25"
+      reservations:
+        memory: 32M
+        cpus: "0.05"
+
+services:
+  # =========================================================================
+  # Tenant: shop-ahmad
+  # Telegram bot for Ahmad's Shopee store
+  # =========================================================================
+  tenant-shop-ahmad:
+    <<: *defaults
+    container_name: zc-shop-ahmad
+    volumes:
+      - shop-ahmad-data:/data
+      - ./tenants/shop-ahmad/config.json:/data/config.json:ro
+    environment:
+      - RUST_LOG=zeptoclaw=info
+      - RUST_LOG_FORMAT=json
+      - ZEPTOCLAW_HEALTH_PORT=9090
+    labels:
+      com.zeptoclaw.tenant: shop-ahmad
+      com.zeptoclaw.version: "0.1.0"
+      com.zeptoclaw.env: production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    command: ["zeptoclaw", "gateway"]
+
+  # =========================================================================
+  # Tenant: shop-fatimah
+  # Telegram bot for Fatimah's online bakery
+  # =========================================================================
+  tenant-shop-fatimah:
+    <<: *defaults
+    container_name: zc-shop-fatimah
+    volumes:
+      - shop-fatimah-data:/data
+      - ./tenants/shop-fatimah/config.json:/data/config.json:ro
+    environment:
+      - RUST_LOG=zeptoclaw=info
+      - RUST_LOG_FORMAT=json
+      - ZEPTOCLAW_HEALTH_PORT=9090
+    labels:
+      com.zeptoclaw.tenant: shop-fatimah
+      com.zeptoclaw.version: "0.1.0"
+      com.zeptoclaw.env: production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    command: ["zeptoclaw", "gateway"]
+
+  # =========================================================================
+  # Tenant: shop-ali
+  # Telegram bot for Ali's electronics store
+  # =========================================================================
+  tenant-shop-ali:
+    <<: *defaults
+    container_name: zc-shop-ali
+    volumes:
+      - shop-ali-data:/data
+      - ./tenants/shop-ali/config.json:/data/config.json:ro
+    environment:
+      - RUST_LOG=zeptoclaw=info
+      - RUST_LOG_FORMAT=json
+      - ZEPTOCLAW_HEALTH_PORT=9090
+    labels:
+      com.zeptoclaw.tenant: shop-ali
+      com.zeptoclaw.version: "0.1.0"
+      com.zeptoclaw.env: production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    command: ["zeptoclaw", "gateway"]
+
+  # =========================================================================
+  # Add more tenants by copying a block above and changing:
+  #   1. Service name:     tenant-<name>
+  #   2. Container name:   zc-<name>
+  #   3. Volume names:     <name>-data
+  #   4. Config path:      ./tenants/<name>/config.json
+  #   5. Labels:           com.zeptoclaw.tenant: <name>
+  #
+  # Then add the volume to the volumes section below.
+  # =========================================================================
+
+volumes:
+  shop-ahmad-data:
+  shop-fatimah-data:
+  shop-ali-data:

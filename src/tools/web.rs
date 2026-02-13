@@ -446,7 +446,10 @@ fn is_blocked_host(url: &Url) -> bool {
     // Try parsing as IP directly first, then try stripping IPv6 brackets.
     // `Url::host_str()` returns IPv6 addresses with surrounding brackets
     // (e.g. "[::1]"), which `IpAddr::parse` does not accept.
-    let ip_str = host.strip_prefix('[').and_then(|s| s.strip_suffix(']')).unwrap_or(&host);
+    let ip_str = host
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(&host);
     if let Ok(ip) = ip_str.parse::<IpAddr>() {
         return is_private_or_local_ip(ip);
     }

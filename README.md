@@ -1,118 +1,61 @@
-# ZeptoClaw Rust
+# ZeptoClaw
 
-Ultra-lightweight personal AI assistant framework, ported from Go to Rust.
+Ultra-lightweight personal AI assistant framework in Rust. The smallest, fastest, safest member of the Claw family.
 
-## Overview
+## Features
 
-ZeptoClaw Rust is a complete rewrite of the ZeptoClaw AI assistant in Rust, maintaining the same ultra-efficient design philosophy while leveraging Rust's safety guarantees and zero-cost abstractions.
-
-### Features
-
-- **Ultra-Lightweight**: Minimal memory footprint with aggressive release optimizations
+- **Ultra-Lightweight**: ~4MB binary, ~6MB RSS, <50ms startup
 - **Async Runtime**: Built on Tokio for efficient concurrent operations
-- **Multi-Provider Support**: Works with OpenRouter, Anthropic, OpenAI, Gemini, Zhipu, DeepSeek, and Groq
-- **Tool System**: Extensible tool framework with bash, file operations, and web search
-- **Gateway Support**: Telegram bot integration for remote access
-- **Memory Persistence**: Session and long-term memory storage
+- **Multi-Provider**: Anthropic Claude and OpenAI (with OpenAI-compatible endpoints)
+- **Container Isolation**: Native, Docker, or Apple Container runtimes for shell sandboxing
+- **Containerized Gateway**: Full agent isolation per request via Docker or Apple Containers
+- **Tool System**: 13 tools including shell, filesystem, web, WhatsApp, Google Sheets, cron, spawn
+- **Multi-Channel**: Telegram, Slack (outbound), CLI
+- **Skills System**: Markdown-based skill files for extending agent capabilities
+- **Heartbeat Service**: Periodic background task execution from HEARTBEAT.md
+- **Security Hardened**: SSRF prevention, path traversal detection, shell command blocklist, mount validation
 
-## Building
-
-### Prerequisites
-
-- Rust 1.70+ (install via [rustup](https://rustup.rs/))
-- A supported LLM API key (OpenRouter, Anthropic, etc.)
-
-### Development Build
+## Quick Start
 
 ```bash
-make build
-# or
-cargo build
-```
-
-### Release Build
-
-```bash
-make build-release
-# or
+# Build
 cargo build --release
+
+# Interactive setup
+./target/release/zeptoclaw onboard
+
+# Chat with agent
+./target/release/zeptoclaw agent -m "Hello"
+
+# Start Telegram bot gateway
+./target/release/zeptoclaw gateway
+
+# Gateway with container isolation
+./target/release/zeptoclaw gateway --containerized
 ```
 
-The release build uses aggressive optimizations:
-- `opt-level = "z"` - Optimize for size
-- `lto = true` - Link-time optimization
-- `codegen-units = 1` - Single codegen unit for better optimization
-- `strip = true` - Strip symbols
-- `panic = "abort"` - Abort on panic (smaller binary)
-
-### Installation
-
-```bash
-make install
-```
-
-This installs the binary to `~/.local/bin/zeptoclaw`.
-
-## Usage
-
-### Quick Start
-
-1. **Initialize configuration**:
-   ```bash
-   zeptoclaw onboard
-   ```
-
-2. **Configure API keys** in `~/.zeptoclaw/config.json`:
-   ```json
-   {
-     "agents": {
-       "defaults": {
-         "model": "anthropic/claude-sonnet-4",
-         "max_tokens": 8192
-       }
-     },
-     "providers": {
-       "openrouter": {
-         "api_key": "sk-or-v1-xxx"
-       }
-     }
-   }
-   ```
-
-3. **Chat with the agent**:
-   ```bash
-   zeptoclaw agent -m "What is 2+2?"
-   ```
-
-### CLI Commands
+## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `zeptoclaw onboard` | Initialize config and workspace |
+| `zeptoclaw onboard` | Interactive configuration setup |
 | `zeptoclaw agent -m "..."` | Single message mode |
 | `zeptoclaw agent` | Interactive chat mode |
-| `zeptoclaw gateway` | Start Telegram bot gateway |
+| `zeptoclaw gateway` | Start channel gateway (Telegram bot) |
 | `zeptoclaw gateway --containerized` | Gateway with container isolation (auto-detect) |
-| `zeptoclaw gateway --containerized docker` | Gateway with Docker isolation |
-| `zeptoclaw gateway --containerized apple` | Gateway with Apple Container (macOS) |
+| `zeptoclaw gateway --containerized docker` | Force Docker backend |
+| `zeptoclaw gateway --containerized apple` | Force Apple Container (macOS 15+) |
+| `zeptoclaw heartbeat` | Trigger heartbeat check manually |
+| `zeptoclaw heartbeat --show` | Show heartbeat file contents |
+| `zeptoclaw heartbeat --edit` | Edit heartbeat file in $EDITOR |
+| `zeptoclaw skills list` | List available skills |
+| `zeptoclaw skills show <name>` | Show skill content |
+| `zeptoclaw skills create <name>` | Create a new skill |
 | `zeptoclaw status` | Show configuration status |
-
-### Interactive Mode
-
-```bash
-zeptoclaw agent
-```
-
-In interactive mode:
-- Type messages and press Enter to send
-- Type `exit` or `quit` to end the session
-- Press Ctrl+C to interrupt
 
 ## Configuration
 
-Config file location: `~/.zeptoclaw/config.json`
-
-### Full Configuration Example
+Config file: `~/.zeptoclaw/config.json`
 
 ```json
 {
@@ -126,29 +69,8 @@ Config file location: `~/.zeptoclaw/config.json`
     }
   },
   "providers": {
-    "openrouter": {
-      "api_key": "sk-or-v1-xxx",
-      "api_base": "https://openrouter.ai/api/v1"
-    },
-    "anthropic": {
-      "api_key": "sk-ant-xxx"
-    },
-    "openai": {
-      "api_key": "sk-xxx"
-    },
-    "gemini": {
-      "api_key": "xxx"
-    },
-    "zhipu": {
-      "api_key": "xxx",
-      "api_base": "https://open.bigmodel.cn/api/paas/v4"
-    },
-    "deepseek": {
-      "api_key": "xxx"
-    },
-    "groq": {
-      "api_key": "gsk_xxx"
-    }
+    "anthropic": { "api_key": "sk-ant-xxx" },
+    "openai": { "api_key": "sk-xxx" }
   },
   "channels": {
     "telegram": {
@@ -159,152 +81,140 @@ Config file location: `~/.zeptoclaw/config.json`
   },
   "tools": {
     "web": {
-      "search": {
-        "api_key": "BSA...",
-        "max_results": 5
-      }
+      "search": { "api_key": "BSA...", "max_results": 5 }
+    },
+    "whatsapp": {
+      "phone_number_id": "123456789",
+      "access_token": "EAA..."
+    },
+    "google_sheets": {
+      "access_token": "ya29..."
     }
+  },
+  "runtime": {
+    "runtime_type": "native",
+    "docker": { "image": "alpine:latest", "memory_limit": "512m" }
+  },
+  "heartbeat": {
+    "enabled": true,
+    "interval_secs": 1800
+  },
+  "skills": {
+    "enabled": true,
+    "always_load": ["github"]
   }
 }
 ```
 
-### Supported LLM Providers
-
-| Provider | API Base | Notes |
-|----------|----------|-------|
-| OpenRouter | `openrouter.ai/api/v1` | Access to multiple models |
-| Anthropic | `api.anthropic.com` | Claude models |
-| OpenAI | `api.openai.com/v1` | GPT models |
-| Gemini | `generativelanguage.googleapis.com` | Google's Gemini |
-| Zhipu | `open.bigmodel.cn/api/paas/v4` | GLM models |
-| DeepSeek | `api.deepseek.com` | DeepSeek models |
-| Groq | `api.groq.com/openai/v1` | Fast inference |
-
-### Containerized Mode
-
-Run `--containerized` to isolate each agent request in its own container:
-
-```bash
-# Auto-detect best backend (Apple Container on macOS, else Docker)
-zeptoclaw gateway --containerized
-
-# Force a specific backend
-zeptoclaw gateway --containerized docker
-zeptoclaw gateway --containerized apple   # macOS 15+ only
-```
-
-Requires a container image with ZeptoClaw installed. Build one with:
-
-```bash
-docker build -t zeptoclaw:latest .
-```
-
-Containerized gateway uses stdin/stdout IPC with this request schema:
-
-```json
-{
-  "request_id": "req-123",
-  "message": { "...": "InboundMessage fields" },
-  "agent_config": { "...": "AgentDefaults fields" },
-  "session": { "...": "optional Session state" }
-}
-```
-
-### Workspace Structure
-
-```
-~/.zeptoclaw/workspace/
-├── sessions/          # Conversation history
-├── memory/           # Long-term memory (MEMORY.md)
-├── AGENTS.md         # Agent behavior guide
-├── IDENTITY.md       # Agent identity
-├── SOUL.md           # Agent personality
-├── TOOLS.md          # Tool descriptions
-└── USER.md           # User preferences
-```
-
-## Development
-
-### Running Tests
-
-```bash
-make test
-# or with output
-make test-verbose
-```
-
-### Linting
-
-```bash
-make lint
-```
-
-### Formatting
-
-```bash
-make fmt
-```
-
-### Full Quality Check
-
-```bash
-make check
-```
-
-### Project Structure
-
-```
-rust/
-├── Cargo.toml           # Dependencies and build config
-├── Makefile             # Build automation
-├── src/
-│   ├── main.rs          # CLI entry point
-│   ├── lib.rs           # Library root
-│   ├── config/          # Configuration loading
-│   ├── llm/             # LLM provider implementations
-│   ├── agent/           # Agent core and execution
-│   ├── tools/           # Tool implementations
-│   ├── gateway/         # Telegram integration
-│   └── utils/           # Utility functions
-└── tests/               # Integration tests
-```
+Environment variables override config values:
+- `ZEPTOCLAW_PROVIDERS_ANTHROPIC_API_KEY`
+- `ZEPTOCLAW_PROVIDERS_OPENAI_API_KEY`
+- `ZEPTOCLAW_CHANNELS_TELEGRAM_BOT_TOKEN`
 
 ## Tools
 
-ZeptoClaw includes several built-in tools:
+| Tool | Description | Requires |
+|------|-------------|----------|
+| `shell` | Execute shell commands (with runtime isolation) | - |
+| `read_file` | Read file contents | - |
+| `write_file` | Write content to files | - |
+| `list_dir` | List directory contents | - |
+| `edit_file` | Find-and-replace in files | - |
+| `web_search` | Search the web via Brave API | Brave API key |
+| `web_fetch` | Fetch and extract URL content | - |
+| `whatsapp_send` | Send WhatsApp messages | Meta Cloud API credentials |
+| `google_sheets` | Read/write Google Sheets | Google API credentials |
+| `message` | Send messages to chat channels | - |
+| `memory_get` / `memory_search` | Read and search workspace memory | - |
+| `cron` | Schedule recurring tasks | - |
+| `spawn` | Delegate background tasks | - |
 
-| Tool | Description |
-|------|-------------|
-| `bash` | Execute shell commands |
-| `read_file` | Read file contents |
-| `write_file` | Write content to files |
-| `list_files` | List directory contents |
-| `search_files` | Search for patterns in files |
-| `web_search` | Search the web (requires Brave API key) |
-| `memory` | Store/retrieve long-term memory |
+## Architecture
 
-## Comparison with Go Version
+```
+src/
+├── agent/          # Agent loop, context builder
+├── bus/            # Async message bus (pub/sub)
+├── channels/       # Input channels (Telegram, Slack, CLI)
+├── config/         # Configuration types and loading
+├── cron/           # Persistent cron scheduler
+├── gateway/        # Containerized agent proxy
+├── heartbeat/      # Periodic background task service
+├── memory/         # Workspace memory (markdown-based)
+├── providers/      # LLM providers (Claude, OpenAI)
+├── runtime/        # Container runtimes (Native, Docker, Apple)
+├── security/       # Shell blocklist, path validation, mount policy
+├── session/        # Session and message persistence
+├── skills/         # Markdown-based skill system
+├── tools/          # 13 agent tools
+├── utils/          # Utility functions
+├── error.rs        # Error types
+├── lib.rs          # Library exports
+└── main.rs         # CLI entry point
+```
 
-| Aspect | Go | Rust |
-|--------|-----|------|
-| Memory safety | Runtime | Compile-time |
-| Async model | Goroutines | Tokio async/await |
-| Error handling | Multiple returns | Result type |
-| Binary size | ~8MB | ~5MB (optimized) |
-| Startup time | <1s | <1s |
+## Security
+
+ZeptoClaw uses defense-in-depth:
+
+1. **Container Isolation** (Docker/Apple Container) - process, filesystem, and network isolation for shell commands
+2. **Containerized Gateway** - full agent isolation per request with semaphore-based concurrency
+3. **Shell Command Blocklist** - regex patterns blocking dangerous commands (rm -rf, reverse shells, etc.)
+4. **Path Traversal Protection** - symlink escape detection, workspace-scoped filesystem tools
+5. **SSRF Prevention** - DNS pre-resolution against private IPs, redirect host validation, streaming body limits
+6. **Input Validation** - URL path injection prevention, spreadsheet ID validation, mount allowlist
+7. **Rate Limiting** - cron job caps (50 active, 60s minimum interval), spawn recursion prevention
+
+## Containerized Gateway
+
+Run each agent request in an isolated container:
+
+```bash
+# Auto-detect best backend
+zeptoclaw gateway --containerized
+
+# Build the container image first
+docker build -t zeptoclaw:latest .
+```
+
+The gateway uses stdin/stdout IPC with the containerized agent, supports concurrent request processing via semaphore, and validates all mounts against a security allowlist.
+
+## Multi-Tenant Deployment
+
+Run multiple tenants on a single VPS using container-per-tenant isolation. Each tenant gets their own container, config, and data volume. ZeptoClaw is ~6MB RSS, so hundreds of tenants fit on a small VPS.
+
+```bash
+./scripts/add-tenant.sh shop-ahmad "BOT_TOKEN" "API_KEY"
+./scripts/generate-compose.sh > docker-compose.multi-tenant.yml
+docker compose -f docker-compose.multi-tenant.yml up -d
+```
+
+See [docs/MULTI-TENANT.md](docs/MULTI-TENANT.md) for full guide.
+
+## Development
+
+```bash
+# Run all tests (498 total: 442 lib + 56 integration)
+cargo test
+
+# Lint
+cargo clippy -- -D warnings
+
+# Format
+cargo fmt
+```
+
+## Performance
+
+Verified on Apple Silicon (release build):
+
+| Metric | Value |
+|--------|-------|
+| Binary size | ~4MB |
+| Startup time | ~50ms |
+| Memory (RSS) | ~6MB |
+| Test suite | 498 tests (442 lib + 56 integration) |
 
 ## License
 
-MIT License - See [LICENSE](../LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-1. Code passes `make check`
-2. New features include tests
-3. Documentation is updated
-
-## Acknowledgments
-
-- Original [ZeptoClaw Go](https://github.com/sipeed/zeptoclaw) implementation
-- Inspired by [nanobot](https://github.com/HKUDS/nanobot)
+MIT

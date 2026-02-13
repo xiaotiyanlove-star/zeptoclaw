@@ -49,6 +49,7 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     gosu \
+    wget \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -d /data zeptoclaw
 
@@ -62,8 +63,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # Set environment
 ENV RUST_LOG=zeptoclaw=info
 
-# Expose gateway port
-EXPOSE 8080
+# Expose gateway port and health check port
+EXPOSE 8080 9090
 
 # Data volume
 VOLUME /data

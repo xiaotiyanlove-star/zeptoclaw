@@ -20,6 +20,9 @@ use zeptoclaw::config::{
     Config, ContainerAgentBackend, MemoryBackend, MemoryCitationsMode, RuntimeType,
 };
 use zeptoclaw::cron::CronService;
+use zeptoclaw::health::{
+    health_port, start_health_server, start_periodic_usage_flush, UsageMetrics,
+};
 use zeptoclaw::heartbeat::{ensure_heartbeat_file, HeartbeatService, HEARTBEAT_PROMPT};
 use zeptoclaw::providers::{
     configured_provider_names, configured_unsupported_provider_names, resolve_runtime_provider,
@@ -120,12 +123,21 @@ enum AuthAction {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    // Initialize logging (JSON format when RUST_LOG_FORMAT=json)
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let use_json = std::env::var("RUST_LOG_FORMAT")
+        .map(|v| v.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    if use_json {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .with_target(true)
+            .with_thread_ids(false)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(env_filter).init();
+    }
 
     let cli = Cli::parse();
 
@@ -1182,6 +1194,29 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
     // Create message bus
     let bus = Arc::new(MessageBus::new());
 
+    // Create usage metrics tracker
+    let metrics = Arc::new(UsageMetrics::new());
+
+    // Start health check server (liveness + readiness)
+    let hp = health_port();
+    let health_handle = match start_health_server(hp, Arc::clone(&metrics)).await {
+        Ok(handle) => {
+            info!(
+                port = hp,
+                "Health endpoints available at /healthz and /readyz"
+            );
+            Some(handle)
+        }
+        Err(e) => {
+            warn!(error = %e, "Failed to start health server (non-fatal)");
+            None
+        }
+    };
+
+    // Create shutdown watch channel for periodic usage flush
+    let (usage_shutdown_tx, usage_shutdown_rx) = tokio::sync::watch::channel(false);
+    let usage_flush_handle = start_periodic_usage_flush(Arc::clone(&metrics), usage_shutdown_rx);
+
     // Determine agent backend: containerized or in-process
     let mut proxy = None;
     let proxy_handle = if containerized {
@@ -1238,13 +1273,17 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
             bus.clone(),
             backend,
         ));
+        proxy_instance.set_usage_metrics(Arc::clone(&metrics));
         let proxy_for_task = Arc::clone(&proxy_instance);
+        let proxy_metrics = Arc::clone(&metrics);
         proxy = Some(proxy_instance);
 
         Some(tokio::spawn(async move {
             if let Err(e) = proxy_for_task.start().await {
                 error!("Container agent proxy error: {}", e);
             }
+            proxy_metrics.set_ready(false);
+            warn!("Container agent proxy stopped; readiness set to false");
         }))
     } else {
         // Validate provider for in-process mode
@@ -1271,7 +1310,9 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
 
     // Create in-process agent (only needed when not containerized)
     let agent = if !containerized {
-        Some(create_agent(config.clone(), bus.clone()).await?)
+        let agent = create_agent(config.clone(), bus.clone()).await?;
+        agent.set_usage_metrics(Arc::clone(&metrics)).await;
+        Some(agent)
     } else {
         None
     };
@@ -1323,14 +1364,20 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
     // Start agent loop in background (only for in-process mode)
     let agent_handle = if let Some(ref agent) = agent {
         let agent_clone = Arc::clone(agent);
+        let agent_metrics = Arc::clone(&metrics);
         Some(tokio::spawn(async move {
             if let Err(e) = agent_clone.start().await {
                 error!("Agent loop error: {}", e);
             }
+            agent_metrics.set_ready(false);
+            warn!("Agent loop stopped; readiness set to false");
         }))
     } else {
         None
     };
+
+    // Mark gateway as ready for /readyz
+    metrics.set_ready(true);
 
     println!();
     if containerized {
@@ -1347,6 +1394,13 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
 
     println!();
     println!("Shutting down...");
+
+    // Mark not ready immediately
+    metrics.set_ready(false);
+
+    // Signal usage flush to emit final summary
+    let _ = usage_shutdown_tx.send(true);
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), usage_flush_handle).await;
 
     if let Some(service) = &heartbeat_service {
         service.stop().await;
@@ -1372,6 +1426,11 @@ async fn cmd_gateway(containerized_flag: Option<String>) -> Result<()> {
     }
     if let Some(handle) = proxy_handle {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
+    }
+
+    // Stop health server
+    if let Some(handle) = health_handle {
+        handle.abort();
     }
 
     println!("Gateway stopped.");

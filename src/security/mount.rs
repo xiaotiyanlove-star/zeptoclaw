@@ -394,7 +394,10 @@ mod tests {
         let spec = format!("{}:relative", safe.display());
         let result = validate_mount_not_blocked(&spec);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid container"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid container"));
     }
 
     #[test]
@@ -405,20 +408,29 @@ mod tests {
         let spec = format!("{}:/container/../etc", safe.display());
         let result = validate_mount_not_blocked(&spec);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid container"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid container"));
     }
 
     #[test]
     fn test_not_blocked_rejects_malformed_mount_spec() {
         let result = validate_mount_not_blocked("single-value");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid mount format"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid mount format"));
     }
 
     #[test]
     fn test_not_blocked_rejects_invalid_mode() {
         let result = validate_mount_not_blocked("/data:/container:rw");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid mount mode"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid mount mode"));
     }
 }

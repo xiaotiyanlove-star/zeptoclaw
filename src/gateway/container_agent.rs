@@ -7,7 +7,7 @@
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use tokio::io::AsyncWriteExt;
@@ -19,6 +19,7 @@ use uuid::Uuid;
 use crate::bus::{InboundMessage, MessageBus, OutboundMessage};
 use crate::config::{Config, ContainerAgentBackend, ContainerAgentConfig};
 use crate::error::{Result, ZeptoError};
+use crate::health::UsageMetrics;
 use crate::security::mount::validate_mount_not_blocked;
 use crate::session::SessionManager;
 
@@ -70,6 +71,7 @@ pub struct ContainerAgentProxy {
     running: AtomicBool,
     shutdown_tx: watch::Sender<bool>,
     shutdown_rx: watch::Receiver<bool>,
+    usage_metrics: RwLock<Option<Arc<UsageMetrics>>>,
     resolved_backend: ResolvedBackend,
     semaphore: Arc<Semaphore>,
 }
@@ -99,6 +101,7 @@ impl ContainerAgentProxy {
             running: AtomicBool::new(false),
             shutdown_tx,
             shutdown_rx,
+            usage_metrics: RwLock::new(None),
             resolved_backend: backend,
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
         }
@@ -107,6 +110,14 @@ impl ContainerAgentProxy {
     /// Return the resolved backend.
     pub fn backend(&self) -> ResolvedBackend {
         self.resolved_backend
+    }
+
+    /// Enable usage metrics collection for this proxy.
+    pub fn set_usage_metrics(&self, metrics: Arc<UsageMetrics>) {
+        match self.usage_metrics.write() {
+            Ok(mut guard) => *guard = Some(metrics),
+            Err(e) => warn!("Failed to set usage metrics (poisoned lock): {}", e),
+        }
     }
 
     /// Start the proxy loop, processing messages from the bus.
@@ -123,8 +134,7 @@ impl ContainerAgentProxy {
 
         info!(
             "Starting containerized agent proxy (backend={}, max_concurrent={})",
-            self.resolved_backend,
-            self.container_config.max_concurrent,
+            self.resolved_backend, self.container_config.max_concurrent,
         );
 
         let mut shutdown_rx = self.shutdown_rx.clone();
@@ -183,6 +193,15 @@ impl ContainerAgentProxy {
 
     /// Process a message in a container.
     async fn process_in_container(&self, message: &InboundMessage) -> OutboundMessage {
+        let usage_metrics = self
+            .usage_metrics
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone());
+        if let Some(metrics) = usage_metrics.as_ref() {
+            metrics.record_request();
+        }
+
         let request_id = Uuid::new_v4().to_string();
         let session_snapshot = self.load_session_snapshot(&message.session_key).await;
 
@@ -200,14 +219,22 @@ impl ContainerAgentProxy {
                         .await;
                     OutboundMessage::new(&message.channel, &message.chat_id, &content)
                 }
-                AgentResult::Error { message: err, .. } => OutboundMessage::new(
-                    &message.channel,
-                    &message.chat_id,
-                    &format!("Error: {}", err),
-                ),
+                AgentResult::Error { message: err, .. } => {
+                    if let Some(metrics) = usage_metrics.as_ref() {
+                        metrics.record_error();
+                    }
+                    OutboundMessage::new(
+                        &message.channel,
+                        &message.chat_id,
+                        &format!("Error: {}", err),
+                    )
+                }
             },
             Err(e) => {
                 error!("Container execution failed: {}", e);
+                if let Some(metrics) = usage_metrics.as_ref() {
+                    metrics.record_error();
+                }
                 OutboundMessage::new(
                     &message.channel,
                     &message.chat_id,
@@ -971,8 +998,7 @@ mod tests {
         let bus = Arc::new(MessageBus::new());
         let proxy = ContainerAgentProxy::new(config, bus, ResolvedBackend::Docker);
 
-        let temp_root =
-            std::env::temp_dir().join(format!("zeptoclaw-wk-test-{}", Uuid::new_v4()));
+        let temp_root = std::env::temp_dir().join(format!("zeptoclaw-wk-test-{}", Uuid::new_v4()));
         let workspace_dir = temp_root.join("workspace");
         let sessions_dir = temp_root.join("sessions");
         let config_path = temp_root.join("config.json");
@@ -1157,8 +1183,7 @@ EOF
     #[test]
     fn test_build_docker_invocation_rejects_sensitive_extra_mount() {
         let mut config = Config::default();
-        config.container_agent.extra_mounts =
-            vec!["/home/user/.ssh:/container/.ssh".to_string()];
+        config.container_agent.extra_mounts = vec!["/home/user/.ssh:/container/.ssh".to_string()];
 
         let bus = Arc::new(MessageBus::new());
         let proxy = ContainerAgentProxy::new(config, bus, ResolvedBackend::Docker);
@@ -1186,14 +1211,12 @@ EOF
     #[test]
     fn test_build_docker_invocation_rejects_env_file_mount() {
         let mut config = Config::default();
-        config.container_agent.extra_mounts =
-            vec!["/app/.env:/container/.env".to_string()];
+        config.container_agent.extra_mounts = vec!["/app/.env:/container/.env".to_string()];
 
         let bus = Arc::new(MessageBus::new());
         let proxy = ContainerAgentProxy::new(config, bus, ResolvedBackend::Docker);
 
-        let temp_root =
-            std::env::temp_dir().join(format!("zeptoclaw-env-test-{}", Uuid::new_v4()));
+        let temp_root = std::env::temp_dir().join(format!("zeptoclaw-env-test-{}", Uuid::new_v4()));
         let workspace_dir = temp_root.join("workspace");
         let sessions_dir = temp_root.join("sessions");
         let config_path = temp_root.join("config.json");
@@ -1215,14 +1238,12 @@ EOF
     #[test]
     fn test_build_docker_invocation_rejects_aws_credentials_mount() {
         let mut config = Config::default();
-        config.container_agent.extra_mounts =
-            vec!["/home/user/.aws:/container/aws:ro".to_string()];
+        config.container_agent.extra_mounts = vec!["/home/user/.aws:/container/aws:ro".to_string()];
 
         let bus = Arc::new(MessageBus::new());
         let proxy = ContainerAgentProxy::new(config, bus, ResolvedBackend::Docker);
 
-        let temp_root =
-            std::env::temp_dir().join(format!("zeptoclaw-aws-test-{}", Uuid::new_v4()));
+        let temp_root = std::env::temp_dir().join(format!("zeptoclaw-aws-test-{}", Uuid::new_v4()));
         let workspace_dir = temp_root.join("workspace");
         let sessions_dir = temp_root.join("sessions");
         let config_path = temp_root.join("config.json");
@@ -1297,7 +1318,10 @@ EOF
         assert!(result.is_ok(), "Safe mount should be accepted");
         let invocation = result.unwrap();
         assert!(
-            invocation.args.iter().any(|a| a.contains("/container/data")),
+            invocation
+                .args
+                .iter()
+                .any(|a| a.contains("/container/data")),
             "Extra mount should appear in args"
         );
 
@@ -1327,14 +1351,20 @@ EOF
     fn test_validate_mount_not_blocked_rejects_invalid_container_path() {
         let result = validate_mount_not_blocked("/home/user/data:relative/path");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid container"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid container"));
     }
 
     #[test]
     fn test_validate_mount_not_blocked_rejects_container_path_traversal() {
         let result = validate_mount_not_blocked("/home/user/data:/container/../etc");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid container"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid container"));
     }
 
     fn has_arg_pair(args: &[String], flag: &str, value: &str) -> bool {

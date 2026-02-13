@@ -476,10 +476,7 @@ mod tests {
         let ctx = ToolContext::new().with_workspace(canonical.to_str().unwrap());
 
         let result = tool
-            .execute(
-                json!({"path": "a/b/c/test.txt", "content": "nested"}),
-                &ctx,
-            )
+            .execute(json!({"path": "a/b/c/test.txt", "content": "nested"}), &ctx)
             .await;
         assert!(result.is_ok());
         assert_eq!(
@@ -529,9 +526,7 @@ mod tests {
         let tool = ListDirTool;
         let ctx = ToolContext::new().with_workspace(canonical.to_str().unwrap());
 
-        let result = tool
-            .execute(json!({"path": "nonexistent_dir"}), &ctx)
-            .await;
+        let result = tool.execute(json!({"path": "nonexistent_dir"}), &ctx).await;
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

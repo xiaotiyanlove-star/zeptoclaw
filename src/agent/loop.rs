@@ -8,11 +8,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::{watch, Mutex, RwLock};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use crate::bus::{InboundMessage, MessageBus, OutboundMessage};
 use crate::config::Config;
 use crate::error::{Result, ZeptoError};
+use crate::health::UsageMetrics;
 use crate::providers::{ChatOptions, LLMProvider};
 use crate::session::{Message, Role, SessionManager, ToolCall};
 use crate::tools::{Tool, ToolContext, ToolRegistry};
@@ -64,6 +65,8 @@ pub struct AgentLoop {
     running: AtomicBool,
     /// Context builder for constructing LLM messages
     context_builder: ContextBuilder,
+    /// Optional usage metrics sink for gateway observability
+    usage_metrics: Arc<RwLock<Option<Arc<UsageMetrics>>>>,
     /// Shutdown signal sender
     shutdown_tx: watch::Sender<bool>,
     /// Per-session locks to serialize concurrent messages for the same session
@@ -102,6 +105,7 @@ impl AgentLoop {
             tools: Arc::new(RwLock::new(ToolRegistry::new())),
             running: AtomicBool::new(false),
             context_builder: ContextBuilder::new(),
+            usage_metrics: Arc::new(RwLock::new(None)),
             shutdown_tx,
             session_locks: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -129,6 +133,7 @@ impl AgentLoop {
             tools: Arc::new(RwLock::new(ToolRegistry::new())),
             running: AtomicBool::new(false),
             context_builder,
+            usage_metrics: Arc::new(RwLock::new(None)),
             shutdown_tx,
             session_locks: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -157,6 +162,12 @@ impl AgentLoop {
     pub async fn set_provider(&self, provider: Box<dyn LLMProvider>) {
         let mut p = self.provider.write().await;
         *p = Some(Arc::from(provider));
+    }
+
+    /// Enable usage metrics collection for this agent loop.
+    pub async fn set_usage_metrics(&self, metrics: Arc<UsageMetrics>) {
+        let mut usage_metrics = self.usage_metrics.write().await;
+        *usage_metrics = Some(metrics);
     }
 
     /// Register a tool with the agent.
@@ -231,6 +242,10 @@ impl AgentLoop {
                     .ok_or_else(|| ZeptoError::Provider("No provider configured".into()))?,
             )
         };
+        let usage_metrics = {
+            let metrics = self.usage_metrics.read().await;
+            metrics.clone()
+        };
 
         // Get or create session
         let mut session = self.session_manager.get_or_create(&msg.session_key).await?;
@@ -257,6 +272,9 @@ impl AgentLoop {
         let mut response = provider
             .chat(messages, tool_definitions.clone(), model, options.clone())
             .await?;
+        if let (Some(metrics), Some(usage)) = (usage_metrics.as_ref(), response.usage.as_ref()) {
+            metrics.record_tokens(usage.prompt_tokens as u64, usage.completion_tokens as u64);
+        }
 
         // Add user message to session
         session.add_message(Message::user(&msg.content));
@@ -268,6 +286,9 @@ impl AgentLoop {
         while response.has_tool_calls() && iteration < max_iterations {
             iteration += 1;
             debug!("Tool iteration {} of {}", iteration, max_iterations);
+            if let Some(metrics) = usage_metrics.as_ref() {
+                metrics.record_tool_calls(response.tool_calls.len() as u64);
+            }
 
             // Add assistant message with tool calls
             let mut assistant_msg = Message::assistant(&response.content);
@@ -305,6 +326,7 @@ impl AgentLoop {
 
                 // Acquire the tools read lock only for the duration of each
                 // tool execution, then release it between calls.
+                let tool_start = std::time::Instant::now();
                 let result = {
                     let tools = self.tools.read().await;
                     match tools
@@ -312,11 +334,16 @@ impl AgentLoop {
                         .await
                     {
                         Ok(r) => {
-                            debug!(tool = %tool_call.name, "Tool executed successfully");
+                            let tool_latency_ms = tool_start.elapsed().as_millis() as u64;
+                            debug!(tool = %tool_call.name, latency_ms = tool_latency_ms, "Tool executed successfully");
                             r
                         }
                         Err(e) => {
-                            error!(tool = %tool_call.name, error = %e, "Tool execution failed");
+                            let tool_latency_ms = tool_start.elapsed().as_millis() as u64;
+                            error!(tool = %tool_call.name, latency_ms = tool_latency_ms, error = %e, "Tool execution failed");
+                            if let Some(metrics) = usage_metrics.as_ref() {
+                                metrics.record_error();
+                            }
                             format!("Error: {}", e)
                         }
                     }
@@ -342,6 +369,10 @@ impl AgentLoop {
             response = provider
                 .chat(messages, tool_definitions, model, options.clone())
                 .await?;
+            if let (Some(metrics), Some(usage)) = (usage_metrics.as_ref(), response.usage.as_ref())
+            {
+                metrics.record_tokens(usage.prompt_tokens as u64, usage.completion_tokens as u64);
+            }
         }
 
         if iteration >= max_iterations && response.has_tool_calls() {
@@ -401,33 +432,85 @@ impl AgentLoop {
                 // Wait for inbound messages
                 msg = self.bus.consume_inbound() => {
                     if let Some(msg) = msg {
-                        info!(
+                        let tenant_id = msg
+                            .metadata
+                            .get("tenant_id")
+                            .filter(|v| !v.is_empty())
+                            .map(String::as_str)
+                            .unwrap_or(&msg.chat_id);
+                        let request_id = uuid::Uuid::new_v4();
+                        let request_span = info_span!(
+                            "request",
+                            request_id = %request_id,
+                            tenant_id = %tenant_id,
+                            chat_id = %msg.chat_id,
+                            session_id = %msg.session_key,
                             channel = %msg.channel,
                             sender = %msg.sender_id,
-                            session = %msg.session_key,
-                            "Processing message"
                         );
+                        let msg_ref = &msg;
+                        let bus_ref = &self.bus;
+                        let usage_metrics = {
+                            let metrics = self.usage_metrics.read().await;
+                            metrics.clone()
+                        };
+                        async {
+                            info!("Processing message");
+                            let start = std::time::Instant::now();
+                            let tokens_before = usage_metrics.as_ref().map(|m| {
+                                (
+                                    m.input_tokens.load(std::sync::atomic::Ordering::Relaxed),
+                                    m.output_tokens.load(std::sync::atomic::Ordering::Relaxed),
+                                )
+                            });
+                            if let Some(metrics) = usage_metrics.as_ref() {
+                                metrics.record_request();
+                            }
 
-                        match self.process_message(&msg).await {
-                            Ok(response) => {
-                                debug!(response_len = response.len(), "Generated response");
+                            match self.process_message(msg_ref).await {
+                                Ok(response) => {
+                                    let latency_ms = start.elapsed().as_millis() as u64;
+                                    let (input_tokens, output_tokens) = tokens_before
+                                        .and_then(|(ib, ob)| {
+                                            usage_metrics.as_ref().map(|m| {
+                                                let ia = m.input_tokens.load(std::sync::atomic::Ordering::Relaxed);
+                                                let oa = m.output_tokens.load(std::sync::atomic::Ordering::Relaxed);
+                                                (ia.saturating_sub(ib), oa.saturating_sub(ob))
+                                            })
+                                        })
+                                        .unwrap_or((0, 0));
+                                    info!(
+                                        latency_ms = latency_ms,
+                                        response_len = response.len(),
+                                        input_tokens = input_tokens,
+                                        output_tokens = output_tokens,
+                                        "Request completed"
+                                    );
 
-                                let outbound = OutboundMessage::new(&msg.channel, &msg.chat_id, &response);
-                                if let Err(e) = self.bus.publish_outbound(outbound).await {
-                                    error!("Failed to publish outbound message: {}", e);
+                                    let outbound = OutboundMessage::new(&msg_ref.channel, &msg_ref.chat_id, &response);
+                                    if let Err(e) = bus_ref.publish_outbound(outbound).await {
+                                        error!("Failed to publish outbound message: {}", e);
+                                        if let Some(metrics) = usage_metrics.as_ref() {
+                                            metrics.record_error();
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let latency_ms = start.elapsed().as_millis() as u64;
+                                    error!(latency_ms = latency_ms, error = %e, "Request failed");
+                                    if let Some(metrics) = usage_metrics.as_ref() {
+                                        metrics.record_error();
+                                    }
+
+                                    let error_msg = OutboundMessage::new(
+                                        &msg_ref.channel,
+                                        &msg_ref.chat_id,
+                                        &format!("Error: {}", e),
+                                    );
+                                    bus_ref.publish_outbound(error_msg).await.ok();
                                 }
                             }
-                            Err(e) => {
-                                error!(error = %e, "Error processing message");
-
-                                let error_msg = OutboundMessage::new(
-                                    &msg.channel,
-                                    &msg.chat_id,
-                                    &format!("Error: {}", e),
-                                );
-                                self.bus.publish_outbound(error_msg).await.ok();
-                            }
-                        }
+                        }.instrument(request_span).await;
                     } else {
                         // Channel closed, exit loop
                         info!("Inbound channel closed");

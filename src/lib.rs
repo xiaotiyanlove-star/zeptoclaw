@@ -7,6 +7,7 @@ pub mod config;
 pub mod cron;
 pub mod error;
 pub mod gateway;
+pub mod health;
 pub mod heartbeat;
 pub mod memory;
 pub mod providers;
@@ -41,6 +42,7 @@ pub use gateway::{
     parse_marked_response, resolve_backend, AgentRequest, AgentResponse, AgentResult,
     ContainerAgentProxy, ResolvedBackend, RESPONSE_END_MARKER, RESPONSE_START_MARKER,
 };
+pub use health::{health_port, start_health_server, start_periodic_usage_flush, UsageMetrics};
 
 #[cfg(target_os = "macos")]
 pub use runtime::AppleContainerRuntime;
