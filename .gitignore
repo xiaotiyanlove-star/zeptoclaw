@@ -28,6 +28,9 @@ target/
 .aider*
 .codex/
 
+# Worktrees
+.worktrees/
+
 # External references
 external/
 
@@ -43,3 +46,4 @@ landing/**/_deploy/
 # Secrets
 .env
 landing/.env
+docs/launch/
