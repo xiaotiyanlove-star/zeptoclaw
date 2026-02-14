@@ -1,0 +1,49 @@
+# ZeptoClaw on DigitalOcean App Platform
+#
+# Deploy:
+#   1. Install doctl:    brew install doctl   (or https://docs.digitalocean.com/reference/doctl/how-to/install/)
+#   2. Login:            doctl auth init
+#   3. Create app:       doctl apps create --spec deploy/digitalocean.yaml
+#   4. Set secrets in dashboard:
+#        ZEPTOCLAW_PROVIDERS_ANTHROPIC_API_KEY
+#        ZEPTOCLAW_CHANNELS_TELEGRAM_BOT_TOKEN
+#   5. Redeploy:         doctl apps create-deployment <app-id>
+#
+# Docs: https://docs.digitalocean.com/products/app-platform/reference/app-spec/
+# Pricing: https://docs.digitalocean.com/products/app-platform/details/pricing/
+
+spec:
+  name: zeptoclaw
+  region: sgp
+
+  workers:
+    - name: zeptoclaw-worker
+      github:
+        repo: qhkm/zeptoclaw
+        branch: main
+        deploy_on_push: true
+      dockerfile_path: Dockerfile
+      run_command: zeptoclaw gateway
+      instance_size_slug: apps-s-1vcpu-0.5gb
+      instance_count: 1
+      health_check:
+        http_path: /healthz
+        port: 9090
+        initial_delay_seconds: 10
+        period_seconds: 30
+        timeout_seconds: 5
+        success_threshold: 1
+        failure_threshold: 3
+      envs:
+        - key: RUST_LOG
+          value: "zeptoclaw=info"
+          scope: RUN_TIME
+        - key: RUST_LOG_FORMAT
+          value: "json"
+          scope: RUN_TIME
+        - key: ZEPTOCLAW_PROVIDERS_ANTHROPIC_API_KEY
+          type: SECRET
+          scope: RUN_TIME
+        - key: ZEPTOCLAW_CHANNELS_TELEGRAM_BOT_TOKEN
+          type: SECRET
+          scope: RUN_TIME
