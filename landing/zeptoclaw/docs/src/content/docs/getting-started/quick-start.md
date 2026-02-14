@@ -90,7 +90,7 @@ zeptoclaw batch --input prompts.txt --format jsonl
 
 ## What's next?
 
-- Learn about the [agent loop](/concepts/agent-loop/) to understand how messages are processed
-- Browse available [tools](/reference/tools/) your agent can use
-- Set up [channels](/concepts/channels/) for Telegram, Slack, or Discord
-- Explore [plugins](/guides/plugins/) to extend your agent with custom tools
+- Learn about the [agent loop](/docs/concepts/agent-loop/) to understand how messages are processed
+- Browse available [tools](/docs/reference/tools/) your agent can use
+- Set up [channels](/docs/concepts/channels/) for Telegram, Slack, or Discord
+- Explore [plugins](/docs/guides/plugins/) to extend your agent with custom tools

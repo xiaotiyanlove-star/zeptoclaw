@@ -62,4 +62,4 @@ This prevents token waste from large binary outputs.
 
 ## Custom tools via plugins
 
-You can add custom tools without modifying ZeptoClaw's source code using the [plugin system](/guides/plugins/). Plugins are JSON manifests that define tool name, parameters, and a command template.
+You can add custom tools without modifying ZeptoClaw's source code using the [plugin system](/docs/guides/plugins/). Plugins are JSON manifests that define tool name, parameters, and a command template.

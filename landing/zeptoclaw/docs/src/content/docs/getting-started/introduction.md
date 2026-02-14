@@ -63,4 +63,4 @@ The agent receives a message, builds a system prompt with context, calls an LLM 
 
 ## Next steps
 
-Ready to get started? [Install ZeptoClaw](/getting-started/installation/) and run your first agent in under a minute.
+Ready to get started? [Install ZeptoClaw](/docs/getting-started/installation/) and run your first agent in under a minute.

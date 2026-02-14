@@ -94,4 +94,4 @@ zeptoclaw --help
 
 ## Next steps
 
-Now that ZeptoClaw is installed, follow the [quick start guide](/getting-started/quick-start/) to run your first agent interaction.
+Now that ZeptoClaw is installed, follow the [quick start guide](/docs/getting-started/quick-start/) to run your first agent interaction.
