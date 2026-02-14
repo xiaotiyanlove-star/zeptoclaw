@@ -6,6 +6,7 @@ pub mod bus;
 pub mod channels;
 pub mod config;
 pub mod cron;
+pub mod deps;
 pub mod error;
 pub mod gateway;
 pub mod health;
