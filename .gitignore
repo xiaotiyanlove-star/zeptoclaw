@@ -47,6 +47,7 @@ landing/**/node_modules/
 landing/**/.wrangler/
 landing/**/dist/
 landing/**/_deploy/
+landing/**/.astro/
 
 # Secrets
 .env
