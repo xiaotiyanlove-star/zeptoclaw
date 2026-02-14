@@ -94,6 +94,23 @@ zeptoclaw gateway
 zeptoclaw gateway --containerized
 ```
 
+## Deploy
+
+<p align="center">
+  <a href="https://cloud.digitalocean.com/apps/new?repo=https://github.com/qhkm/zeptoclaw/tree/main"><img src="https://img.shields.io/badge/DigitalOcean-0080FF?style=for-the-badge&logo=digitalocean&logoColor=white" alt="Deploy to DigitalOcean"></a>
+  <a href="https://railway.com/deploy?template=https://github.com/qhkm/zeptoclaw"><img src="https://img.shields.io/badge/Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white" alt="Deploy to Railway"></a>
+  <a href="https://render.com/deploy?repo=https://github.com/qhkm/zeptoclaw"><img src="https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white" alt="Deploy to Render"></a>
+  <a href="https://fly.io/docs/hands-on/"><img src="https://img.shields.io/badge/Fly.io-6E42C1?style=for-the-badge&logo=fly.io&logoColor=white" alt="Deploy to Fly.io"></a>
+</p>
+
+### Any VPS
+
+```bash
+curl -fsSL https://zeptoclaw.com/setup.sh | bash
+```
+
+Interactive setup guides you through provider keys and channel selection. Installs the binary, creates a systemd service, starts on boot.
+
 ## Features
 
 ### Core
