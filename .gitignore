@@ -38,7 +38,6 @@ external/
 docs/internal/
 docs/plans/*.md
 !docs/plans/TODO.md
-docs/COMPARISON.md
 docs/LAUNCH.md
 docs/LAUNCH_BENCHMARK.md
 
