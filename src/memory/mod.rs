@@ -17,6 +17,9 @@ const CHUNK_OVERLAP: usize = 4;
 const DEFAULT_GET_LINES: usize = 80;
 const MAX_GET_LINES: usize = 400;
 
+/// Maximum characters for memory injection into system prompt (~500 tokens).
+pub const MEMORY_INJECTION_BUDGET: usize = 2000;
+
 /// Search result entry returned by memory search.
 #[derive(Debug, Clone, Serialize)]
 pub struct MemorySearchResult {
@@ -257,6 +260,70 @@ fn read_workspace_memory_sync(
         truncated: end_idx < total_lines,
         text,
     })
+}
+
+/// Build memory context string for injection into the system prompt.
+///
+/// Collects pinned memories first (always included), then query-matched
+/// results from the user's message. Stops when budget_chars is reached.
+/// Returns empty string if no memories qualify.
+pub fn build_memory_injection(
+    ltm: &crate::memory::longterm::LongTermMemory,
+    user_message: &str,
+    budget_chars: usize,
+) -> String {
+    let mut parts = Vec::new();
+    let mut used_chars = 0usize;
+    let mut seen_keys = std::collections::HashSet::new();
+
+    // 1. Always inject pinned memories
+    let pinned = ltm.list_by_category("pinned");
+    let mut pinned_lines = Vec::new();
+    for entry in pinned {
+        let line = format!("- {}: {}", entry.key, entry.value);
+        if used_chars + line.len() + 1 > budget_chars {
+            break;
+        }
+        used_chars += line.len() + 1; // +1 for newline
+        seen_keys.insert(entry.key.clone());
+        pinned_lines.push(line);
+    }
+
+    // 2. Query-match from user message
+    let mut relevant_lines = Vec::new();
+    if !user_message.trim().is_empty() {
+        let results = ltm.search(user_message);
+        for entry in results.iter().take(5) {
+            if seen_keys.contains(&entry.key) {
+                continue;
+            }
+            let line = format!("- {}: {}", entry.key, entry.value);
+            if used_chars + line.len() + 1 > budget_chars {
+                break;
+            }
+            used_chars += line.len() + 1;
+            seen_keys.insert(entry.key.clone());
+            relevant_lines.push(line);
+        }
+    }
+
+    // 3. Build output
+    if pinned_lines.is_empty() && relevant_lines.is_empty() {
+        return String::new();
+    }
+
+    parts.push("## Memory\n".to_string());
+    if !pinned_lines.is_empty() {
+        parts.push("### Pinned".to_string());
+        parts.extend(pinned_lines);
+        parts.push(String::new()); // blank line
+    }
+    if !relevant_lines.is_empty() {
+        parts.push("### Relevant".to_string());
+        parts.extend(relevant_lines);
+    }
+
+    parts.join("\n").trim().to_string()
 }
 
 fn collect_memory_files(workspace: &Path, config: &MemoryConfig) -> Result<Vec<PathBuf>> {
@@ -500,5 +567,116 @@ mod tests {
 
         let files = collect_memory_files(workspace, &config).unwrap();
         assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_build_memory_injection_pinned_only() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        ltm.set("user:name", "Alice", "pinned", vec![], 1.0)
+            .unwrap();
+        ltm.set("pref:lang", "Rust", "pinned", vec![], 1.0)
+            .unwrap();
+
+        let result = build_memory_injection(&ltm, "", 2000);
+        assert!(result.contains("## Memory"));
+        assert!(result.contains("### Pinned"));
+        assert!(result.contains("user:name: Alice"));
+        assert!(result.contains("pref:lang: Rust"));
+        assert!(!result.contains("### Relevant"));
+    }
+
+    #[test]
+    fn test_build_memory_injection_query_match() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        ltm.set("fact:project", "ZeptoClaw is 4MB", "fact", vec![], 1.0)
+            .unwrap();
+        ltm.set("fact:other", "unrelated thing", "fact", vec![], 1.0)
+            .unwrap();
+
+        let result = build_memory_injection(&ltm, "ZeptoClaw", 2000);
+        assert!(result.contains("### Relevant"));
+        assert!(result.contains("ZeptoClaw is 4MB"));
+    }
+
+    #[test]
+    fn test_build_memory_injection_pinned_not_duplicated() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        ltm.set("user:name", "Alice", "pinned", vec![], 1.0)
+            .unwrap();
+
+        let result = build_memory_injection(&ltm, "Alice", 2000);
+        // "user:name: Alice" should appear only once (in pinned, not duplicated in relevant)
+        assert_eq!(result.matches("user:name: Alice").count(), 1);
+    }
+
+    #[test]
+    fn test_build_memory_injection_budget_enforcement() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        // Create entries that exceed a small budget
+        for i in 0..20 {
+            ltm.set(
+                &format!("pin:{}", i),
+                &"x".repeat(50),
+                "pinned",
+                vec![],
+                1.0,
+            )
+            .unwrap();
+        }
+
+        let result = build_memory_injection(&ltm, "", 200);
+        // Should be truncated to fit within ~200 chars
+        assert!(
+            result.len() < 300,
+            "Result length {} should be < 300",
+            result.len()
+        );
+    }
+
+    #[test]
+    fn test_build_memory_injection_empty_memories() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+
+        let result = build_memory_injection(&ltm, "hello", 2000);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_build_memory_injection_empty_message_no_relevant() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        ltm.set("fact:x", "value", "fact", vec![], 1.0).unwrap();
+
+        let result = build_memory_injection(&ltm, "", 2000);
+        // With empty message, no query-match, and no pinned entries => empty
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_build_memory_injection_mixed_pinned_and_relevant() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("lt.json");
+        let mut ltm = crate::memory::longterm::LongTermMemory::with_path(path).unwrap();
+        ltm.set("user:name", "Alice", "pinned", vec![], 1.0)
+            .unwrap();
+        ltm.set("fact:rust", "Rust is fast", "fact", vec![], 1.0)
+            .unwrap();
+
+        let result = build_memory_injection(&ltm, "Rust", 2000);
+        assert!(result.contains("### Pinned"));
+        assert!(result.contains("### Relevant"));
+        assert!(result.contains("user:name: Alice"));
+        assert!(result.contains("fact:rust: Rust is fast"));
     }
 }
