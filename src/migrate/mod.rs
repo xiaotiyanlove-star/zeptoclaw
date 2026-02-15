@@ -45,10 +45,7 @@ impl MigrationReport {
         println!();
 
         if !self.config_migrated.is_empty() {
-            println!(
-                "  Config fields migrated: {}",
-                self.config_migrated.len()
-            );
+            println!("  Config fields migrated: {}", self.config_migrated.len());
             for field in &self.config_migrated {
                 println!("    + {}", field);
             }

@@ -387,11 +387,7 @@ pub async fn run() -> Result<()> {
         }) => {
             watch::cmd_watch(url, interval, notify).await?;
         }
-        Some(Commands::Migrate {
-            from,
-            yes,
-            dry_run,
-        }) => {
+        Some(Commands::Migrate { from, yes, dry_run }) => {
             migrate::cmd_migrate(from, yes, dry_run).await?;
         }
     }

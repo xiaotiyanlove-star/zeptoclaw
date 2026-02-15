@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde_json::Value;
 
+/// Result of copying skills: (copied_names, skipped_with_reasons).
+pub type CopySkillsResult = (Vec<String>, Vec<(String, String)>);
+
 /// Find OpenClaw skill directories.
 ///
 /// Checks:
@@ -42,10 +45,7 @@ pub fn find_skill_dirs(openclaw_dir: &Path, openclaw_config: &Value) -> Vec<Path
 /// already exist in the destination are skipped.
 ///
 /// Returns `(copied_names, skipped)` where skipped contains `(name, reason)`.
-pub fn copy_skills(
-    source_dirs: &[PathBuf],
-    dest_dir: &Path,
-) -> Result<(Vec<String>, Vec<(String, String)>)> {
+pub fn copy_skills(source_dirs: &[PathBuf], dest_dir: &Path) -> Result<CopySkillsResult> {
     std::fs::create_dir_all(dest_dir)
         .with_context(|| format!("Failed to create skills directory: {}", dest_dir.display()))?;
 
@@ -172,8 +172,7 @@ mod tests {
         fs::write(non_skill.join("README.md"), "readme").unwrap();
 
         let dest_dir = dst.path().join("skills");
-        let (copied, skipped) =
-            copy_skills(&[src.path().join("skills")], &dest_dir).unwrap();
+        let (copied, skipped) = copy_skills(&[src.path().join("skills")], &dest_dir).unwrap();
 
         assert_eq!(copied, vec!["my-skill".to_string()]);
         assert!(skipped.is_empty());
@@ -199,8 +198,7 @@ mod tests {
         let dest_dir = dst.path().join("skills");
         fs::create_dir_all(dest_dir.join("existing")).unwrap();
 
-        let (copied, skipped) =
-            copy_skills(&[src.path().join("skills")], &dest_dir).unwrap();
+        let (copied, skipped) = copy_skills(&[src.path().join("skills")], &dest_dir).unwrap();
 
         assert!(copied.is_empty());
         assert_eq!(skipped.len(), 1);

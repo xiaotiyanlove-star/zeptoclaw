@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use crate::config::{
-    Config, CompactionConfig, DiscordConfig, ProviderConfig, SlackConfig, TelegramConfig,
+    CompactionConfig, Config, DiscordConfig, ProviderConfig, SlackConfig, TelegramConfig,
 };
 
 /// Result of a config conversion: lists of migrated / skipped / not-portable fields.
@@ -21,30 +21,10 @@ pub fn convert_config(openclaw: &Value, existing: &mut Config) -> MigrationConfi
     let mut not_portable = Vec::new();
 
     // ── Providers ──────────────────────────────────────────────────────
-    migrate_provider(
-        openclaw,
-        existing,
-        "anthropic",
-        &mut migrated,
-    );
-    migrate_provider(
-        openclaw,
-        existing,
-        "openai",
-        &mut migrated,
-    );
-    migrate_provider_key_only(
-        openclaw,
-        existing,
-        "openrouter",
-        &mut migrated,
-    );
-    migrate_provider_key_only(
-        openclaw,
-        existing,
-        "groq",
-        &mut migrated,
-    );
+    migrate_provider(openclaw, existing, "anthropic", &mut migrated);
+    migrate_provider(openclaw, existing, "openai", &mut migrated);
+    migrate_provider_key_only(openclaw, existing, "openrouter", &mut migrated);
+    migrate_provider_key_only(openclaw, existing, "groq", &mut migrated);
 
     // ── Agent defaults ────────────────────────────────────────────────
 
@@ -121,8 +101,8 @@ pub fn convert_config(openclaw: &Value, existing: &mut Config) -> MigrationConfi
     }
 
     // Web search maxResults
-    if let Some(n) = pointer(openclaw, &["tools", "web", "search", "maxResults"])
-        .and_then(|v| v.as_u64())
+    if let Some(n) =
+        pointer(openclaw, &["tools", "web", "search", "maxResults"]).and_then(|v| v.as_u64())
     {
         existing.tools.web.search.max_results = n as u32;
         migrated.push("tools.web.search.maxResults".into());
@@ -162,12 +142,7 @@ pub fn convert_config(openclaw: &Value, existing: &mut Config) -> MigrationConfi
 
 /// Migrate a provider (api_key + api_base) from OpenClaw's
 /// `models.providers.<name>.{apiKey,baseUrl}`.
-fn migrate_provider(
-    oc: &Value,
-    config: &mut Config,
-    name: &str,
-    migrated: &mut Vec<String>,
-) {
+fn migrate_provider(oc: &Value, config: &mut Config, name: &str, migrated: &mut Vec<String>) {
     let api_key = str_at(oc, &["models", "providers", name, "apiKey"]);
     let api_base = str_at(oc, &["models", "providers", name, "baseUrl"]);
 
@@ -212,9 +187,17 @@ fn get_provider_mut<'a>(
     name: &str,
 ) -> Option<&'a mut ProviderConfig> {
     match name {
-        "anthropic" => Some(providers.anthropic.get_or_insert_with(ProviderConfig::default)),
+        "anthropic" => Some(
+            providers
+                .anthropic
+                .get_or_insert_with(ProviderConfig::default),
+        ),
         "openai" => Some(providers.openai.get_or_insert_with(ProviderConfig::default)),
-        "openrouter" => Some(providers.openrouter.get_or_insert_with(ProviderConfig::default)),
+        "openrouter" => Some(
+            providers
+                .openrouter
+                .get_or_insert_with(ProviderConfig::default),
+        ),
         "groq" => Some(providers.groq.get_or_insert_with(ProviderConfig::default)),
         "zhipu" => Some(providers.zhipu.get_or_insert_with(ProviderConfig::default)),
         "vllm" => Some(providers.vllm.get_or_insert_with(ProviderConfig::default)),
@@ -232,27 +215,21 @@ fn check_not_portable(
 ) {
     // session.scope / dmScope
     if pointer(oc, &["session", "scope"]).is_some() {
-        not_portable.push(
-            "session.scope — ZeptoClaw uses container-per-request isolation instead".into(),
-        );
+        not_portable
+            .push("session.scope — ZeptoClaw uses container-per-request isolation instead".into());
     }
     if pointer(oc, &["session", "dmScope"]).is_some() {
-        not_portable.push(
-            "session.dmScope — use allow_from allowlists per channel".into(),
-        );
+        not_portable.push("session.dmScope — use allow_from allowlists per channel".into());
     }
 
     // tools.profile
     if pointer(oc, &["tools", "profile"]).is_some() {
-        not_portable
-            .push("tools.profile — use ZeptoClaw's approval gate instead".into());
+        not_portable.push("tools.profile — use ZeptoClaw's approval gate instead".into());
     }
 
     // tools.exec.host: "sandbox"
     if str_at(oc, &["tools", "exec", "host"]) == Some("sandbox") {
-        not_portable.push(
-            "tools.exec.host: \"sandbox\" — use runtime config instead".into(),
-        );
+        not_portable.push("tools.exec.host: \"sandbox\" — use runtime config instead".into());
     }
 
     // Non-Brave search provider
@@ -272,8 +249,7 @@ fn check_not_portable(
 
     // auth.profiles (OAuth)
     if pointer(oc, &["auth", "profiles"]).is_some() {
-        not_portable
-            .push("auth.profiles — ZeptoClaw uses API key authentication only".into());
+        not_portable.push("auth.profiles — ZeptoClaw uses API key authentication only".into());
     }
 
     // browser.*
@@ -282,26 +258,29 @@ fn check_not_portable(
     }
 
     // Unsupported channels
-    for ch in &["signal", "imessage", "matrix", "line", "irc", "mattermost", "teams"] {
+    for ch in &[
+        "signal",
+        "imessage",
+        "matrix",
+        "line",
+        "irc",
+        "mattermost",
+        "teams",
+    ] {
         if pointer(oc, &["channels", ch]).is_some() {
-            not_portable.push(format!(
-                "channels.{} — use the webhook adapter pattern",
-                ch
-            ));
+            not_portable.push(format!("channels.{} — use the webhook adapter pattern", ch));
         }
     }
 
     // agents.list (multi-agent definitions)
     if pointer(oc, &["agents", "list"]).is_some() {
-        not_portable.push(
-            "agents.list — multi-agent definitions have no direct equivalent yet".into(),
-        );
+        not_portable
+            .push("agents.list — multi-agent definitions have no direct equivalent yet".into());
     }
 
     // plugins.installs
     if pointer(oc, &["plugins", "installs"]).is_some() {
-        not_portable
-            .push("plugins.installs — ZeptoClaw uses a different plugin system".into());
+        not_portable.push("plugins.installs — ZeptoClaw uses a different plugin system".into());
     }
 }
 
@@ -390,9 +369,15 @@ mod tests {
         let groq = config.providers.groq.as_ref().unwrap();
         assert_eq!(groq.api_key.as_deref(), Some("gsk-test"));
 
-        assert!(result.migrated.contains(&"providers.anthropic.api_key".to_string()));
-        assert!(result.migrated.contains(&"providers.openai.api_key".to_string()));
-        assert!(result.migrated.contains(&"providers.groq.api_key".to_string()));
+        assert!(result
+            .migrated
+            .contains(&"providers.anthropic.api_key".to_string()));
+        assert!(result
+            .migrated
+            .contains(&"providers.openai.api_key".to_string()));
+        assert!(result
+            .migrated
+            .contains(&"providers.groq.api_key".to_string()));
     }
 
     #[test]
@@ -466,14 +451,8 @@ mod tests {
             .not_portable
             .iter()
             .any(|s| s.contains("session.scope")));
-        assert!(result
-            .not_portable
-            .iter()
-            .any(|s| s.contains("talk.")));
-        assert!(result
-            .not_portable
-            .iter()
-            .any(|s| s.contains("browser.")));
+        assert!(result.not_portable.iter().any(|s| s.contains("talk.")));
+        assert!(result.not_portable.iter().any(|s| s.contains("browser.")));
     }
 
     #[test]
@@ -518,7 +497,13 @@ mod tests {
 
         // New value applied
         assert_eq!(
-            config.providers.anthropic.as_ref().unwrap().api_key.as_deref(),
+            config
+                .providers
+                .anthropic
+                .as_ref()
+                .unwrap()
+                .api_key
+                .as_deref(),
             Some("new-key")
         );
         // Existing values preserved

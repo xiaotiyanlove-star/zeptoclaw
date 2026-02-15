@@ -11,11 +11,7 @@ use zeptoclaw::migrate::{self, MigrationReport};
 use super::common::read_line;
 
 /// Run the migration command.
-pub(crate) async fn cmd_migrate(
-    from: Option<String>,
-    yes: bool,
-    dry_run: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_migrate(from: Option<String>, yes: bool, dry_run: bool) -> Result<()> {
     if dry_run {
         println!("(dry-run mode — no files will be written)");
         println!();
@@ -107,8 +103,7 @@ pub(crate) async fn cmd_migrate(
     };
 
     if do_config {
-        let config_result =
-            migrate::config::convert_config(&openclaw_config, &mut config);
+        let config_result = migrate::config::convert_config(&openclaw_config, &mut config);
 
         report.config_migrated = config_result.migrated;
         report.config_skipped = config_result.skipped;
@@ -130,7 +125,10 @@ pub(crate) async fn cmd_migrate(
                 .with_context(|| "Failed to save migrated config")?;
             println!("  Config saved to: {}", Config::path().display());
         } else {
-            println!("  (dry-run) Would save config to: {}", Config::path().display());
+            println!(
+                "  (dry-run) Would save config to: {}",
+                Config::path().display()
+            );
         }
     } else {
         println!("  Skipping config migration.");
@@ -154,8 +152,7 @@ pub(crate) async fn cmd_migrate(
         let dest_dir = Config::dir().join("skills");
 
         if !dry_run {
-            let (copied, skipped) =
-                migrate::skills::copy_skills(&skill_dirs, &dest_dir)?;
+            let (copied, skipped) = migrate::skills::copy_skills(&skill_dirs, &dest_dir)?;
             report.skills_copied = copied;
             report.skills_skipped = skipped;
             println!(
@@ -180,8 +177,7 @@ pub(crate) async fn cmd_migrate(
         if config_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&config_path) {
                 if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content) {
-                    let diagnostics =
-                        zeptoclaw::config::validate::validate_config(&raw);
+                    let diagnostics = zeptoclaw::config::validate::validate_config(&raw);
                     if diagnostics.is_empty() {
                         println!("  Config is valid.");
                     } else {

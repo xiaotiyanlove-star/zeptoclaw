@@ -440,6 +440,15 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
                     .register_tool(Box::new(MemoryGetTool::new(config.memory.clone())))
                     .await;
             }
+            if tool_enabled("longterm_memory") {
+                match zeptoclaw::tools::longterm_memory::LongTermMemoryTool::new() {
+                    Ok(tool) => {
+                        agent.register_tool(Box::new(tool)).await;
+                        info!("Registered longterm_memory tool");
+                    }
+                    Err(e) => warn!("Failed to initialize longterm_memory tool: {}", e),
+                }
+            }
             info!("Registered memory_search and memory_get tools");
         }
         MemoryBackend::Qmd => {
@@ -453,6 +462,15 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
                 agent
                     .register_tool(Box::new(MemoryGetTool::new(config.memory.clone())))
                     .await;
+            }
+            if tool_enabled("longterm_memory") {
+                match zeptoclaw::tools::longterm_memory::LongTermMemoryTool::new() {
+                    Ok(tool) => {
+                        agent.register_tool(Box::new(tool)).await;
+                        info!("Registered longterm_memory tool");
+                    }
+                    Err(e) => warn!("Failed to initialize longterm_memory tool: {}", e),
+                }
             }
             info!("Registered memory_search and memory_get tools");
         }
