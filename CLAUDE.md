@@ -92,6 +92,14 @@ cargo fmt
 ./target/release/zeptoclaw watch https://example.com --interval 1h --notify telegram
 ```
 
+## Test Snapshot (2026-02-15)
+
+- `src/lib.rs`: 1566 tests (1561 passed, 5 ignored)
+- `src/main.rs`: 50 tests (all passed)
+- `tests/cli_smoke.rs`: 23 tests (all passed)
+- `tests/integration.rs`: 68 tests (all passed)
+- Doc tests: 140 tests (116 passed, 24 ignored)
+
 ## Architecture
 
 ```
@@ -184,7 +192,7 @@ LLM provider abstraction via `LLMProvider` trait:
 - `RetryProvider` - Decorator: exponential backoff on 429/5xx with structured `ProviderError` classification
 - `FallbackProvider` - Decorator: primary → secondary auto-failover with circuit breaker (Closed/Open/HalfOpen)
 - `ProviderError` enum: Auth, RateLimit, Billing, ServerError, InvalidRequest, ModelNotFound, Timeout — enables smart retry/fallback
-- Provider stack in `create_agent()`: base → optional FallbackProvider → optional RetryProvider
+- Runtime provider assembly in `create_agent()`: resolves all configured runtime providers (registry order) and builds a fallback chain (`p0 -> p1 -> p2 -> ...`)
 - `StreamEvent` enum + `chat_stream()` on LLMProvider trait for token-by-token streaming
 - `OutputFormat` enum (Text/Json/JsonSchema) with `to_openai_response_format()` and `to_claude_system_suffix()`
 
@@ -197,6 +205,7 @@ Message input channels via `Channel` trait:
 - `WhatsAppChannel` - WhatsApp via whatsmeow-rs bridge (WebSocket JSON protocol)
 - CLI mode via direct agent invocation
 - All channels support `deny_by_default` config option for sender allowlists
+- `ChannelManager` stores channel handles as `Arc<Mutex<_>>`, so outbound dispatch does not hold the channel map lock across async `send()`
 
 ### Deps (`src/deps/`)
 - `HasDependencies` trait — components declare external dependencies
@@ -229,6 +238,7 @@ Message input channels via `Channel` trait:
 - `TokenBudget` - Atomic per-session token budget tracker (lock-free via `AtomicU64`)
 - `ContextMonitor` - Token estimation (`words * 1.3 + 4/msg`), threshold-based compaction triggers
 - `Compactor` - Summarize (LLM-based) or Truncate strategies for context window management
+- `start()` now routes inbound work through `process_inbound_message()` helper and calls `try_queue_or_process()` before processing
 
 ### Memory (`src/memory/`)
 - Workspace memory - Markdown search/read with chunked scoring
