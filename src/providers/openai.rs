@@ -36,7 +36,9 @@ use tracing::{debug, info};
 use crate::error::{Result, ZeptoError};
 use crate::session::{Message, Role};
 
-use super::{parse_provider_error, ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage};
+use super::{
+    parse_provider_error, ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage,
+};
 
 /// The OpenAI API endpoint URL.
 const OPENAI_API_URL: &str = "https://api.openai.com/v1";

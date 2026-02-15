@@ -33,7 +33,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Result, ZeptoError};
 use crate::session::{Message, Role, ToolCall};
 
-use super::{parse_provider_error, ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage};
+use super::{
+    parse_provider_error, ChatOptions, LLMProvider, LLMResponse, LLMToolCall, ToolDefinition, Usage,
+};
 
 /// The Claude API endpoint URL.
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
