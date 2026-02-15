@@ -621,7 +621,10 @@ pub(crate) async fn validate_api_key(
             }
         }
         _ => {
-            warn!("API key validation not supported for provider '{}', skipping", provider);
+            warn!(
+                "API key validation not supported for provider '{}', skipping",
+                provider
+            );
             Ok(())
         }
     }

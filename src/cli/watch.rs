@@ -90,11 +90,7 @@ async fn read_body_limited(resp: reqwest::Response, max_bytes: usize) -> Result<
     Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
-pub(crate) async fn cmd_watch(
-    url: String,
-    interval: String,
-    notify: Option<String>,
-) -> Result<()> {
+pub(crate) async fn cmd_watch(url: String, interval: String, notify: Option<String>) -> Result<()> {
     let interval_secs = parse_interval(&interval)?;
 
     // Validate URL before starting the loop (catches SSRF, bad schemes, etc.)
