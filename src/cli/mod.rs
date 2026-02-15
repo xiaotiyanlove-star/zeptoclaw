@@ -399,6 +399,6 @@ pub async fn run() -> Result<()> {
 fn cmd_version() {
     println!("zeptoclaw {}", env!("CARGO_PKG_VERSION"));
     println!();
-    println!("Ultra-lightweight personal AI assistant framework");
+    println!("Ultra-lightweight personal AI assistant");
     println!("https://github.com/qhkm/zeptoclaw");
 }

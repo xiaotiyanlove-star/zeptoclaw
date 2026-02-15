@@ -1,6 +1,6 @@
 # ZeptoClaw
 
-A complete AI agent runtime in 4MB. The best of OpenClaw's integrations, NanoClaw's security, and PicoClaw's minimalism — without their tradeoffs.
+Ultra-lightweight personal AI assistant. The best of OpenClaw's integrations, NanoClaw's security, and PicoClaw's minimalism — without their tradeoffs.
 
 ## Quick Reference
 

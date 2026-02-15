@@ -1,4 +1,4 @@
-//! ZeptoClaw - Ultra-lightweight personal AI assistant framework
+//! ZeptoClaw - Ultra-lightweight personal AI assistant
 
 pub mod agent;
 pub mod batch;

@@ -374,7 +374,7 @@ impl AgentLoop {
         // Build messages with history
         let messages = self
             .context_builder
-            .build_messages(session.messages.clone(), &msg.content);
+            .build_messages(&session.messages, &msg.content);
 
         // Get tool definitions (short-lived read lock)
         let tool_definitions = {
@@ -399,7 +399,7 @@ impl AgentLoop {
 
         // Call LLM -- provider lock is NOT held during this await
         let mut response = provider
-            .chat(messages, tool_definitions.clone(), model, options.clone())
+            .chat(messages, tool_definitions, model, options.clone())
             .await?;
         if let (Some(metrics), Some(usage)) = (usage_metrics.as_ref(), response.usage.as_ref()) {
             metrics.record_tokens(usage.prompt_tokens as u64, usage.completion_tokens as u64);
@@ -600,7 +600,7 @@ impl AgentLoop {
             // Call LLM again with tool results -- provider lock NOT held
             let messages: Vec<_> = self
                 .context_builder
-                .build_messages(session.messages.clone(), "")
+                .build_messages(&session.messages, "")
                 .into_iter()
                 .filter(|m| !(m.role == Role::User && m.content.is_empty()))
                 .collect();
@@ -690,7 +690,7 @@ impl AgentLoop {
 
         let messages = self
             .context_builder
-            .build_messages(session.messages.clone(), &msg.content);
+            .build_messages(&session.messages, &msg.content);
 
         let tool_definitions = {
             let tools = self.tools.read().await;
@@ -712,7 +712,7 @@ impl AgentLoop {
 
         // First call: non-streaming to see if there are tool calls
         let mut response = provider
-            .chat(messages, tool_definitions.clone(), model, options.clone())
+            .chat(messages, tool_definitions, model, options.clone())
             .await?;
         if let Some(usage) = response.usage.as_ref() {
             self.token_budget
@@ -870,7 +870,7 @@ impl AgentLoop {
 
             let messages: Vec<_> = self
                 .context_builder
-                .build_messages(session.messages.clone(), "")
+                .build_messages(&session.messages, "")
                 .into_iter()
                 .filter(|m| !(m.role == Role::User && m.content.is_empty()))
                 .collect();
@@ -891,7 +891,7 @@ impl AgentLoop {
             // Re-issue the final call via chat_stream
             let messages: Vec<_> = self
                 .context_builder
-                .build_messages(session.messages.clone(), "")
+                .build_messages(&session.messages, "")
                 .into_iter()
                 .filter(|m| !(m.role == Role::User && m.content.is_empty()))
                 .collect();
@@ -1448,7 +1448,7 @@ mod tests {
     #[test]
     fn test_build_messages_standalone() {
         let builder = ContextBuilder::new();
-        let messages = builder.build_messages(vec![], "Hello");
+        let messages = builder.build_messages(&[], "Hello");
         assert_eq!(messages.len(), 2);
         assert!(messages[1].content == "Hello");
     }

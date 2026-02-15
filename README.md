@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">ZeptoClaw</h1>
 <p align="center">
-  <strong>A complete AI agent runtime. In 4MB.</strong>
+  <strong>Ultra-lightweight personal AI assistant.</strong>
 </p>
 <p align="center">
   <a href="https://zeptoclaw.com/docs/"><img src="https://img.shields.io/badge/docs-zeptoclaw.com-3b82f6?style=for-the-badge&logo=bookstack&logoColor=white" alt="Documentation"></a>
@@ -31,7 +31,7 @@ $ zeptoclaw agent --stream -m "Analyze our API for security issues"
 ✓ Analysis complete in 4.2s
 ```
 
-We studied the best agent frameworks — and their tradeoffs. OpenClaw's integrations without the 100MB. NanoClaw's security without the TypeScript bundle. PicoClaw's size without the bare-bones feature set. One Rust binary with 17 tools, 5 channels, 8 providers, and container isolation.
+We studied the best AI assistants — and their tradeoffs. OpenClaw's integrations without the 100MB. NanoClaw's security without the TypeScript bundle. PicoClaw's size without the bare-bones feature set. One Rust binary with 17 tools, 5 channels, 8 providers, and container isolation.
 
 <p align="center">
   <img src="https://img.shields.io/badge/binary-~4MB-3b82f6" alt="~4MB binary">
@@ -45,7 +45,7 @@ We studied the best agent frameworks — and their tradeoffs. OpenClaw's integra
 
 We studied what works — and what doesn't.
 
-**OpenClaw** proved a framework can handle 12 channels and 100+ skills. But it costs 100MB and 400K lines. **NanoClaw** proved security-first is possible. But it's still 50MB of TypeScript. **PicoClaw** proved agents can run on $10 hardware. But it stripped out everything to get there.
+**OpenClaw** proved an AI assistant can handle 12 channels and 100+ skills. But it costs 100MB and 400K lines. **NanoClaw** proved security-first is possible. But it's still 50MB of TypeScript. **PicoClaw** proved AI assistants can run on $10 hardware. But it stripped out everything to get there.
 
 **ZeptoClaw** took notes. The integrations, the security, the size discipline — without the tradeoffs each one made. One 4MB Rust binary that starts in 50ms, uses 6MB of RAM, and ships with container isolation, prompt injection detection, and a circuit breaker provider stack.
 
@@ -181,7 +181,7 @@ Apache 2.0 — see [LICENSE](LICENSE)
 ---
 
 <p align="center">
-  <em>ZeptoClaw — Because your AI agent shouldn't need more RAM than your text editor.</em>
+  <em>ZeptoClaw — Because your AI assistant shouldn't need more RAM than your text editor.</em>
 </p>
 <p align="center">
   Built by <a href="https://github.com/qhkm">Aisar Labs</a>

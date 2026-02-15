@@ -181,7 +181,7 @@ impl RuntimeContext {
 /// let builder = ContextBuilder::new()
 ///     .with_skills("- /help: Show help information");
 ///
-/// let messages = builder.build_messages(vec![], "Hello!");
+/// let messages = builder.build_messages(&[], "Hello!");
 /// assert_eq!(messages.len(), 2); // system + user message
 /// ```
 pub struct ContextBuilder {
@@ -368,12 +368,12 @@ impl ContextBuilder {
     ///     Message::user("Hello"),
     ///     Message::assistant("Hi there!"),
     /// ];
-    /// let messages = builder.build_messages(history, "How are you?");
+    /// let messages = builder.build_messages(&history, "How are you?");
     /// assert_eq!(messages.len(), 4); // system + 2 history + new user
     /// ```
-    pub fn build_messages(&self, history: Vec<Message>, user_input: &str) -> Vec<Message> {
+    pub fn build_messages(&self, history: &[Message], user_input: &str) -> Vec<Message> {
         let mut messages = vec![self.build_system_message()];
-        messages.extend(history);
+        messages.extend(history.iter().cloned());
         if !user_input.is_empty() {
             messages.push(Message::user(user_input));
         }
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn test_build_messages_empty_input() {
         let builder = ContextBuilder::new();
-        let messages = builder.build_messages(vec![], "");
+        let messages = builder.build_messages(&[], "");
 
         // Only system message when input is empty
         assert_eq!(messages.len(), 1);
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn test_build_messages_with_input() {
         let builder = ContextBuilder::new();
-        let messages = builder.build_messages(vec![], "Hello");
+        let messages = builder.build_messages(&[], "Hello");
 
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].role, Role::System);
@@ -473,7 +473,7 @@ mod tests {
             Message::user("Previous message"),
             Message::assistant("Previous response"),
         ];
-        let messages = builder.build_messages(history, "New message");
+        let messages = builder.build_messages(&history, "New message");
 
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0].role, Role::System);
@@ -493,7 +493,7 @@ mod tests {
             Message::user("Third"),
             Message::assistant("Fourth"),
         ];
-        let messages = builder.build_messages(history, "");
+        let messages = builder.build_messages(&history, "");
 
         // System + 4 history messages (no new input since it's empty)
         assert_eq!(messages.len(), 5);
@@ -572,7 +572,7 @@ mod tests {
             Message::tool_result("call_1", "Found 100 results"),
             Message::assistant("I found 100 results about Rust."),
         ];
-        let messages = builder.build_messages(history, "Thanks!");
+        let messages = builder.build_messages(&history, "Thanks!");
 
         // System + 4 history + new user message
         assert_eq!(messages.len(), 6);
@@ -743,7 +743,7 @@ mod tests {
             .with_channel("telegram")
             .with_os_info();
         let builder = ContextBuilder::new().with_runtime_context(ctx);
-        let messages = builder.build_messages(vec![], "Hello");
+        let messages = builder.build_messages(&[], "Hello");
         assert_eq!(messages.len(), 2);
         assert!(messages[0].content.contains("Runtime Context"));
         assert!(messages[0].content.contains("telegram"));

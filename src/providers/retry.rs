@@ -223,7 +223,8 @@ impl LLMProvider for RetryProvider {
     ) -> Result<LLMResponse> {
         let mut last_err: Option<ZeptoError> = None;
 
-        for attempt in 0..=self.max_retries {
+        // Retry attempts (clone for each since we may need the originals again)
+        for attempt in 0..self.max_retries {
             if attempt > 0 {
                 if let Some(ref err) = last_err {
                     warn!(
@@ -244,7 +245,7 @@ impl LLMProvider for RetryProvider {
             {
                 Ok(response) => return Ok(response),
                 Err(err) => {
-                    if !is_retryable(&err) || attempt == self.max_retries {
+                    if !is_retryable(&err) {
                         return Err(err);
                     }
                     last_err = Some(err);
@@ -252,11 +253,20 @@ impl LLMProvider for RetryProvider {
             }
         }
 
-        // This is unreachable because the loop always returns, but the compiler
-        // cannot prove it. Provide a sensible fallback.
-        Err(last_err.unwrap_or_else(|| {
-            ZeptoError::Provider("Retry loop exited without result".to_string())
-        }))
+        // Final attempt — move instead of clone
+        if self.max_retries > 0 {
+            if let Some(ref err) = last_err {
+                warn!(
+                    provider = self.inner.name(),
+                    attempt = self.max_retries,
+                    max_retries = self.max_retries,
+                    error = %err,
+                    "Retrying chat request after transient error"
+                );
+            }
+            delay_with_jitter(self.max_retries - 1, self.base_delay_ms, self.max_delay_ms).await;
+        }
+        self.inner.chat(messages, tools, model, options).await
     }
 
     async fn chat_stream(
@@ -268,7 +278,8 @@ impl LLMProvider for RetryProvider {
     ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>> {
         let mut last_err: Option<ZeptoError> = None;
 
-        for attempt in 0..=self.max_retries {
+        // Retry attempts (clone for each since we may need the originals again)
+        for attempt in 0..self.max_retries {
             if attempt > 0 {
                 if let Some(ref err) = last_err {
                     warn!(
@@ -289,7 +300,7 @@ impl LLMProvider for RetryProvider {
             {
                 Ok(receiver) => return Ok(receiver),
                 Err(err) => {
-                    if !is_retryable(&err) || attempt == self.max_retries {
+                    if !is_retryable(&err) {
                         return Err(err);
                     }
                     last_err = Some(err);
@@ -297,9 +308,22 @@ impl LLMProvider for RetryProvider {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| {
-            ZeptoError::Provider("Retry loop exited without result".to_string())
-        }))
+        // Final attempt — move instead of clone
+        if self.max_retries > 0 {
+            if let Some(ref err) = last_err {
+                warn!(
+                    provider = self.inner.name(),
+                    attempt = self.max_retries,
+                    max_retries = self.max_retries,
+                    error = %err,
+                    "Retrying chat_stream request after transient error"
+                );
+            }
+            delay_with_jitter(self.max_retries - 1, self.base_delay_ms, self.max_delay_ms).await;
+        }
+        self.inner
+            .chat_stream(messages, tools, model, options)
+            .await
     }
 }
 

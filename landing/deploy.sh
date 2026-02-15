@@ -34,6 +34,7 @@ deploy_r8r() {
 deploy_zeptoclaw() {
     echo "Building zeptoclaw docs..."
     cd "$SCRIPT_DIR/zeptoclaw/docs"
+    rm -rf dist .astro
     npm install --silent
     npx astro build
     cd "$SCRIPT_DIR"

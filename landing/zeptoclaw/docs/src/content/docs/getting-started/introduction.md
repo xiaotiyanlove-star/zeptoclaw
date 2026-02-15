@@ -3,7 +3,7 @@ title: Introduction
 description: What is ZeptoClaw and why should you use it?
 ---
 
-**ZeptoClaw** is an ultra-lightweight AI agent framework built in Rust. It packages streaming LLM responses, agent swarms, a plugin system, batch processing, 5 messaging channels, and container isolation into a single ~5MB binary.
+**ZeptoClaw** is an ultra-lightweight personal AI assistant built in Rust. It packages streaming LLM responses, agent swarms, a plugin system, batch processing, 5 messaging channels, and container isolation into a single ~5MB binary.
 
 ## Why ZeptoClaw?
 
