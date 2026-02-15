@@ -15,6 +15,7 @@ pub mod onboard;
 pub mod skills;
 pub mod status;
 pub mod template;
+pub mod tools;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
@@ -107,6 +108,11 @@ enum Commands {
         #[command(subcommand)]
         action: SkillsAction,
     },
+    /// Manage and discover tools
+    Tools {
+        #[command(subcommand)]
+        action: ToolsAction,
+    },
     /// Manage authentication
     Auth {
         #[command(subcommand)]
@@ -179,6 +185,17 @@ pub enum SkillsAction {
     /// Create a new workspace skill template
     Create {
         /// Skill name
+        name: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ToolsAction {
+    /// List all available tools with status
+    List,
+    /// Show details for a specific tool
+    Info {
+        /// Tool name
         name: String,
     },
 }
@@ -322,6 +339,9 @@ pub async fn run() -> Result<()> {
         }
         Some(Commands::Skills { action }) => {
             skills::cmd_skills(action).await?;
+        }
+        Some(Commands::Tools { action }) => {
+            tools::cmd_tools(action).await?;
         }
         Some(Commands::Auth { action }) => {
             status::cmd_auth(action).await?;
