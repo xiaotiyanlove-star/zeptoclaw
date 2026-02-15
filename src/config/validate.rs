@@ -26,6 +26,8 @@ const KNOWN_TOP_LEVEL: &[&str] = &[
     "compaction",
     "mcp",
     "routines",
+    "custom_tools",
+    "tool_profiles",
 ];
 
 /// Known fields for each section. Nested as section.field.
