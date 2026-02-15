@@ -235,7 +235,11 @@ impl DiscordChannel {
     /// Parses a MESSAGE_CREATE dispatch event into an `InboundMessage`,
     /// returning `None` if the message should be ignored (bot author, empty
     /// content, disallowed user, etc.).
-    fn parse_message_create(data: &Value, allowlist: &[String]) -> Option<InboundMessage> {
+    fn parse_message_create(
+        data: &Value,
+        allowlist: &[String],
+        deny_by_default: bool,
+    ) -> Option<InboundMessage> {
         let msg: MessageCreateData = serde_json::from_value(data.clone()).ok()?;
 
         // Ignore bot messages.
@@ -253,8 +257,13 @@ impl DiscordChannel {
             return None;
         }
 
-        // Allowlist check.
-        if !allowlist.is_empty() && !allowlist.contains(&sender_id) {
+        // Allowlist check with deny_by_default support.
+        let allowed = if allowlist.is_empty() {
+            !deny_by_default
+        } else {
+            allowlist.contains(&sender_id)
+        };
+        if !allowed {
             info!(
                 "Discord: user {} not in allowlist, ignoring message",
                 sender_id
@@ -330,6 +339,7 @@ impl DiscordChannel {
         token: String,
         bus: Arc<MessageBus>,
         allowlist: Vec<String>,
+        deny_by_default: bool,
         mut shutdown_rx: watch::Receiver<bool>,
     ) {
         let mut reconnect_attempt: u32 = 0;
@@ -546,7 +556,7 @@ impl DiscordChannel {
                                                     if event_name == "MESSAGE_CREATE" {
                                                         if let Some(ref data) = payload.d {
                                                             if let Some(inbound) =
-                                                                Self::parse_message_create(data, &allowlist)
+                                                                Self::parse_message_create(data, &allowlist, deny_by_default)
                                                             {
                                                                 if let Err(e) =
                                                                     bus.publish_inbound(inbound).await
@@ -675,6 +685,7 @@ impl Channel for DiscordChannel {
             token,
             Arc::clone(&self.bus),
             self.config.allow_from.clone(),
+            self.config.deny_by_default,
             shutdown_rx,
         ));
 
@@ -858,7 +869,7 @@ mod tests {
             }
         });
 
-        let inbound = DiscordChannel::parse_message_create(&data, &[]);
+        let inbound = DiscordChannel::parse_message_create(&data, &[], false);
         assert!(inbound.is_some());
         let msg = inbound.unwrap();
         assert_eq!(msg.channel, "discord");
@@ -880,10 +891,10 @@ mod tests {
             "author": { "id": "allowed-user", "bot": false }
         });
 
-        let allowed = DiscordChannel::parse_message_create(&data, &["allowed-user".to_string()]);
+        let allowed = DiscordChannel::parse_message_create(&data, &["allowed-user".to_string()], false);
         assert!(allowed.is_some());
 
-        let denied = DiscordChannel::parse_message_create(&data, &["someone-else".to_string()]);
+        let denied = DiscordChannel::parse_message_create(&data, &["someone-else".to_string()], false);
         assert!(denied.is_none());
     }
 
@@ -919,7 +930,7 @@ mod tests {
             "author": { "id": "bot-user", "bot": true }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         assert!(result.is_none());
     }
 
@@ -932,7 +943,7 @@ mod tests {
             "author": { "id": "user-1", "bot": false }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         assert!(result.is_none());
     }
 
@@ -945,7 +956,7 @@ mod tests {
             "author": { "id": "user-2" }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         assert!(result.is_some());
     }
 
@@ -1223,7 +1234,7 @@ mod tests {
             "author": { "id": "  ", "bot": false }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         // Empty (whitespace-only) sender_id should be rejected.
         assert!(result.is_none());
     }
@@ -1237,7 +1248,7 @@ mod tests {
             "author": { "id": "user-42", "bot": false }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         // Empty content should be filtered out.
         assert!(result.is_none());
     }
@@ -1251,7 +1262,7 @@ mod tests {
             "author": { "id": "user-42", "bot": false }
         });
 
-        let result = DiscordChannel::parse_message_create(&data, &[]);
+        let result = DiscordChannel::parse_message_create(&data, &[], false);
         // Empty (whitespace-only) channel_id should be rejected.
         assert!(result.is_none());
     }
@@ -1265,7 +1276,7 @@ mod tests {
             "author": { "id": "user-1" }
         });
 
-        let inbound = DiscordChannel::parse_message_create(&data, &[]).unwrap();
+        let inbound = DiscordChannel::parse_message_create(&data, &[], false).unwrap();
         assert_eq!(inbound.content, "padded message");
     }
 

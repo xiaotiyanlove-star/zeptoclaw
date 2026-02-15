@@ -149,7 +149,11 @@ impl WhatsAppChannel {
 
     /// Parses a bridge "message" event into an `InboundMessage`, returning
     /// `None` if it should be ignored (empty content, disallowed user, etc.).
-    fn parse_bridge_message(msg: &BridgeMessage, allowlist: &[String]) -> Option<InboundMessage> {
+    fn parse_bridge_message(
+        msg: &BridgeMessage,
+        allowlist: &[String],
+        deny_by_default: bool,
+    ) -> Option<InboundMessage> {
         let from = msg.from.as_deref().unwrap_or("").trim().to_string();
         if from.is_empty() {
             return None;
@@ -165,8 +169,13 @@ impl WhatsAppChannel {
             return None;
         }
 
-        // Allowlist check (by phone number).
-        if !allowlist.is_empty() && !allowlist.contains(&from) {
+        // Allowlist check with deny_by_default support (by phone number).
+        let allowed = if allowlist.is_empty() {
+            !deny_by_default
+        } else {
+            allowlist.contains(&from)
+        };
+        if !allowed {
             info!("WhatsApp: user {} not in allowlist, ignoring message", from);
             return None;
         }
@@ -208,6 +217,7 @@ impl WhatsAppChannel {
         bridge_url: String,
         bus: Arc<MessageBus>,
         allowlist: Vec<String>,
+        deny_by_default: bool,
         mut shutdown_rx: watch::Receiver<bool>,
         mut outbound_rx: mpsc::Receiver<BridgeSendMessage>,
     ) {
@@ -288,7 +298,7 @@ impl WhatsAppChannel {
                                         match bridge_msg.msg_type.as_str() {
                                             "message" => {
                                                 if let Some(inbound) =
-                                                    Self::parse_bridge_message(&bridge_msg, &allowlist)
+                                                    Self::parse_bridge_message(&bridge_msg, &allowlist, deny_by_default)
                                                 {
                                                     if let Err(e) =
                                                         bus.publish_inbound(inbound).await
@@ -412,6 +422,7 @@ impl Channel for WhatsAppChannel {
             bridge_url,
             Arc::clone(&self.bus),
             self.config.allow_from.clone(),
+            self.config.deny_by_default,
             shutdown_rx,
             outbound_rx,
         ));
@@ -648,7 +659,7 @@ mod tests {
             data: None,
         };
 
-        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[]);
+        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[], false);
         assert!(inbound.is_some());
         let inbound = inbound.unwrap();
         assert_eq!(inbound.channel, "whatsapp");
@@ -683,7 +694,7 @@ mod tests {
             data: None,
         };
 
-        let result = WhatsAppChannel::parse_bridge_message(&msg, &["60123456789".to_string()]);
+        let result = WhatsAppChannel::parse_bridge_message(&msg, &["60123456789".to_string()], false);
         assert!(result.is_some());
     }
 
@@ -701,7 +712,7 @@ mod tests {
             data: None,
         };
 
-        let result = WhatsAppChannel::parse_bridge_message(&msg, &["60999999999".to_string()]);
+        let result = WhatsAppChannel::parse_bridge_message(&msg, &["60999999999".to_string()], false);
         assert!(result.is_none());
     }
 
@@ -719,7 +730,7 @@ mod tests {
             data: None,
         };
 
-        let result = WhatsAppChannel::parse_bridge_message(&msg, &[]);
+        let result = WhatsAppChannel::parse_bridge_message(&msg, &[], false);
         assert!(result.is_none());
     }
 
@@ -737,7 +748,7 @@ mod tests {
             data: None,
         };
 
-        let result = WhatsAppChannel::parse_bridge_message(&msg, &[]);
+        let result = WhatsAppChannel::parse_bridge_message(&msg, &[], false);
         assert!(result.is_none());
     }
 
@@ -755,7 +766,7 @@ mod tests {
             data: None,
         };
 
-        let result = WhatsAppChannel::parse_bridge_message(&msg, &[]);
+        let result = WhatsAppChannel::parse_bridge_message(&msg, &[], false);
         assert!(result.is_none());
     }
 
@@ -773,7 +784,7 @@ mod tests {
             data: None,
         };
 
-        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[]).unwrap();
+        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[], false).unwrap();
         assert_eq!(inbound.content, "padded message");
     }
 
@@ -791,7 +802,7 @@ mod tests {
             data: None,
         };
 
-        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[]).unwrap();
+        let inbound = WhatsAppChannel::parse_bridge_message(&msg, &[], false).unwrap();
         assert!(inbound.metadata.get("whatsapp_message_id").is_none());
         assert!(inbound.metadata.get("timestamp").is_none());
         assert!(inbound.metadata.get("sender_name").is_none());
