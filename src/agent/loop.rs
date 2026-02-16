@@ -665,6 +665,11 @@ impl AgentLoop {
         session.add_message(Message::assistant(&response.content));
         self.session_manager.save(&session).await?;
 
+        // Emit session SLO metrics
+        let slo = crate::utils::slo::SessionSLO::evaluate(&self.metrics_collector, true);
+        slo.emit();
+        debug!(slo_summary = %slo.summary(), "Session SLO summary");
+
         Ok(response.content)
     }
 
