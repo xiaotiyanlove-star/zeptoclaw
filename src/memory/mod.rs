@@ -1,6 +1,9 @@
 //! Workspace memory utilities (OpenClaw-style markdown memory).
 
 pub mod builtin_searcher;
+#[cfg(feature = "memory-bm25")]
+pub mod bm25_searcher;
+pub mod factory;
 pub mod longterm;
 pub mod traits;
 
