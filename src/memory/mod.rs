@@ -7,8 +7,11 @@ pub mod traits;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Serialize;
+
+pub use traits::MemorySearcher;
 
 use crate::config::MemoryConfig;
 use crate::error::{Result, ZeptoError};
@@ -64,6 +67,7 @@ pub async fn search_workspace_memory(
     workspace: &Path,
     query: &str,
     config: &MemoryConfig,
+    searcher: Arc<dyn MemorySearcher>,
     max_results: Option<usize>,
     min_score: Option<f32>,
     include_citations: bool,
@@ -77,6 +81,7 @@ pub async fn search_workspace_memory(
             &workspace,
             &query,
             &config,
+            &*searcher,
             max_results,
             min_score,
             include_citations,
@@ -91,6 +96,7 @@ fn search_workspace_memory_sync(
     workspace: &Path,
     query: &str,
     config: &MemoryConfig,
+    searcher: &dyn MemorySearcher,
     max_results: Option<usize>,
     min_score: Option<f32>,
     include_citations: bool,
@@ -110,9 +116,6 @@ fn search_workspace_memory_sync(
         .clamp(1, 50);
     let min_score = min_score.unwrap_or(config.min_score).clamp(0.0, 1.0);
     let snippet_chars = (config.max_snippet_chars as usize).max(64);
-
-    let query_terms = tokenize(query);
-    let query_lower = query.to_lowercase();
 
     let mut results = Vec::new();
 
@@ -140,7 +143,7 @@ fn search_workspace_memory_sync(
                 continue;
             }
 
-            let score = score_chunk(&chunk, &query_lower, &query_terms);
+            let score = searcher.score(&chunk, query);
             if score < min_score {
                 if end == lines.len() {
                     break;
@@ -445,49 +448,6 @@ fn relative_path(workspace: &Path, path: &Path) -> String {
         .replace('\\', "/")
 }
 
-fn tokenize(query: &str) -> Vec<String> {
-    let terms: Vec<String> = query
-        .to_lowercase()
-        .split(|ch: char| !ch.is_ascii_alphanumeric())
-        .filter(|term| term.len() >= 2)
-        .map(|term| term.to_string())
-        .collect();
-
-    if terms.is_empty() {
-        vec![query.to_lowercase()]
-    } else {
-        terms
-    }
-}
-
-fn score_chunk(chunk: &str, query_lower: &str, query_terms: &[String]) -> f32 {
-    let chunk_lower = chunk.to_lowercase();
-    let mut matched_terms = 0usize;
-    let mut term_hits = 0usize;
-
-    for term in query_terms {
-        let hits = chunk_lower.match_indices(term).count();
-        if hits > 0 {
-            matched_terms += 1;
-            term_hits += hits;
-        }
-    }
-
-    if matched_terms == 0 {
-        return 0.0;
-    }
-
-    let coverage = matched_terms as f32 / query_terms.len() as f32;
-    let density = (term_hits as f32 / (query_terms.len().max(1) as f32 * 2.0)).min(1.0);
-    let phrase_bonus = if chunk_lower.contains(query_lower) {
-        0.25
-    } else {
-        0.0
-    };
-
-    (coverage * 0.7 + density * 0.3 + phrase_bonus).min(1.0)
-}
-
 fn format_citation(path: &str, start_line: usize, end_line: usize) -> String {
     if start_line == end_line {
         format!("{}#L{}", path, start_line)
@@ -503,6 +463,8 @@ fn truncate_chars(input: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use super::builtin_searcher::BuiltinSearcher;
     use crate::config::{MemoryBackend, MemoryCitationsMode};
     use tempfile::tempdir;
 
@@ -521,6 +483,7 @@ mod tests {
             workspace,
             "concise preference",
             &config,
+            Arc::new(BuiltinSearcher),
             Some(5),
             Some(0.1),
             true,
