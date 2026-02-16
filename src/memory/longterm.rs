@@ -6,12 +6,16 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::error::{Result, ZeptoError};
+
+use super::builtin_searcher::BuiltinSearcher;
+use super::traits::MemorySearcher;
 
 /// Returns the current unix epoch timestamp in seconds.
 fn now_timestamp() -> u64 {
@@ -64,10 +68,20 @@ impl MemoryEntry {
 }
 
 /// Long-term memory store persisted as JSON.
-#[derive(Debug)]
 pub struct LongTermMemory {
     entries: HashMap<String, MemoryEntry>,
     storage_path: PathBuf,
+    searcher: Arc<dyn MemorySearcher>,
+}
+
+impl std::fmt::Debug for LongTermMemory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LongTermMemory")
+            .field("entries", &self.entries)
+            .field("storage_path", &self.storage_path)
+            .field("searcher", &self.searcher.name())
+            .finish()
+    }
 }
 
 impl LongTermMemory {
@@ -81,10 +95,16 @@ impl LongTermMemory {
 
     /// Create a long-term memory store at a custom path. Useful for testing.
     pub fn with_path(path: PathBuf) -> Result<Self> {
+        Self::with_path_and_searcher(path, Arc::new(BuiltinSearcher))
+    }
+
+    /// Create a long-term memory store with a custom searcher.
+    pub fn with_path_and_searcher(path: PathBuf, searcher: Arc<dyn MemorySearcher>) -> Result<Self> {
         let entries = Self::load(&path)?;
         Ok(Self {
             entries,
             storage_path: path,
+            searcher,
         })
     }
 
@@ -151,39 +171,44 @@ impl LongTermMemory {
         Ok(existed)
     }
 
-    /// Case-insensitive substring search across key, value, category, and tags.
+    /// Search across key, value, category, and tags using the injected searcher.
     /// Results are sorted by relevance: exact key matches first, then by
-    /// `decay_score` descending.
+    /// searcher score descending.
     pub fn search(&self, query: &str) -> Vec<&MemoryEntry> {
         let query_lower = query.to_lowercase();
-        let mut results: Vec<&MemoryEntry> = self
+        let mut scored: Vec<(&MemoryEntry, f32)> = self
             .entries
             .values()
-            .filter(|entry| {
-                entry.key.to_lowercase().contains(&query_lower)
-                    || entry.value.to_lowercase().contains(&query_lower)
-                    || entry.category.to_lowercase().contains(&query_lower)
-                    || entry
-                        .tags
-                        .iter()
-                        .any(|tag| tag.to_lowercase().contains(&query_lower))
+            .filter_map(|entry| {
+                // Build searchable text from all entry fields
+                let text = format!(
+                    "{} {} {} {}",
+                    entry.key,
+                    entry.value,
+                    entry.category,
+                    entry.tags.join(" ")
+                );
+                let score = self.searcher.score(&text, query);
+                if score > 0.0 {
+                    Some((entry, score))
+                } else {
+                    None
+                }
             })
             .collect();
 
-        results.sort_by(|a, b| {
-            let a_exact = a.key.to_lowercase() == query_lower;
-            let b_exact = b.key.to_lowercase() == query_lower;
+        // Exact key matches still get priority
+        scored.sort_by(|a, b| {
+            let a_exact = a.0.key.to_lowercase() == query_lower;
+            let b_exact = b.0.key.to_lowercase() == query_lower;
             match (a_exact, b_exact) {
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
-                _ => b
-                    .decay_score()
-                    .partial_cmp(&a.decay_score())
-                    .unwrap_or(std::cmp::Ordering::Equal),
+                _ => b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal),
             }
         });
 
-        results
+        scored.into_iter().map(|(entry, _)| entry).collect()
     }
 
     /// List all entries in a given category, sorted by `last_accessed`
@@ -758,14 +783,15 @@ mod tests {
     }
 
     #[test]
-    fn test_search_sorted_by_decay_score() {
+    fn test_search_sorted_by_searcher_score() {
         let (mut mem, _dir) = temp_memory();
 
-        // Create fresh and old entries
+        // Create entries with identical searchable content except the key
         mem.set("fresh", "test value", "test", vec![], 1.0).unwrap();
         mem.set("old", "test value", "test", vec![], 1.0).unwrap();
 
-        // Age the "old" entry
+        // Age the "old" entry (decay no longer affects search sort — searcher
+        // score is used instead)
         if let Some(entry) = mem.entries.get_mut("old") {
             entry.last_accessed = now_timestamp() - (60 * 86400); // 60 days old
         }
@@ -773,9 +799,10 @@ mod tests {
         let results = mem.search("test");
         assert_eq!(results.len(), 2);
 
-        // Fresh entry should rank first (higher decay score)
-        assert_eq!(results[0].key, "fresh", "Fresh entry should rank first");
-        assert_eq!(results[1].key, "old", "Old entry should rank second");
+        // Both entries should be returned; ordering is by searcher score now
+        let keys: Vec<&str> = results.iter().map(|e| e.key.as_str()).collect();
+        assert!(keys.contains(&"fresh"));
+        assert!(keys.contains(&"old"));
     }
 
     #[test]
@@ -900,5 +927,40 @@ mod tests {
         // Boundaries should be accepted
         assert!(mem.cleanup_expired(0.0).is_ok());
         assert!(mem.cleanup_expired(1.0).is_ok());
+    }
+
+    #[test]
+    fn test_search_uses_injected_searcher() {
+        use crate::memory::traits::MemorySearcher;
+        use std::sync::Arc;
+
+        /// Searcher that only matches entries containing "magic"
+        struct MagicSearcher;
+
+        #[async_trait::async_trait]
+        impl MemorySearcher for MagicSearcher {
+            fn name(&self) -> &str {
+                "magic"
+            }
+            fn score(&self, chunk: &str, _query: &str) -> f32 {
+                if chunk.to_lowercase().contains("magic") {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+        }
+
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("lt.json");
+        let searcher = Arc::new(MagicSearcher);
+        let mut mem = LongTermMemory::with_path_and_searcher(path, searcher).unwrap();
+
+        mem.set("k1", "magic word", "test", vec![], 1.0).unwrap();
+        mem.set("k2", "normal word", "test", vec![], 1.0).unwrap();
+
+        let results = mem.search("anything");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].key, "k1");
     }
 }
