@@ -82,6 +82,15 @@ mod tests {
         assert_eq!(searcher.name(), "builtin");
     }
 
+    #[cfg(feature = "memory-bm25")]
+    #[test]
+    fn test_create_searcher_bm25() {
+        let mut config = MemoryConfig::default();
+        config.backend = MemoryBackend::Bm25;
+        let searcher = create_searcher(&config);
+        assert_eq!(searcher.name(), "bm25");
+    }
+
     #[test]
     fn test_create_searcher_hnsw_falls_back() {
         let mut config = MemoryConfig::default();

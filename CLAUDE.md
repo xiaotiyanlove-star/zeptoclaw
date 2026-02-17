@@ -121,7 +121,7 @@ src/
 ├── gateway/        # Containerized agent proxy (Docker/Apple)
 ├── heartbeat/      # Periodic background task service
 ├── memory/         # Workspace memory + long-term memory with pluggable search backends
-│   ├── traits.rs         # MemorySearcher + MemoryStore traits
+│   ├── traits.rs         # MemorySearcher trait
 │   ├── builtin_searcher.rs # Default substring scorer (always compiled)
 │   ├── bm25_searcher.rs  # BM25 keyword scorer (feature: memory-bm25)
 │   ├── factory.rs        # create_searcher() factory from config

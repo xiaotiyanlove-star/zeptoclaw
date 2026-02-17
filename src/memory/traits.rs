@@ -22,14 +22,18 @@ pub trait MemorySearcher: Send + Sync {
         chunks.iter().map(|c| self.score(c, query)).collect()
     }
 
-    /// Index a new entry. No-op for stateless scorers like builtin/bm25.
-    /// Called when `LongTermMemory::set()` stores or updates an entry.
+    /// Index a new entry. No-op for stateless scorers (e.g., builtin).
+    /// Stateful scorers (e.g., bm25) should override to maintain their index.
+    ///
+    /// Callers should invoke this when storing or updating a memory entry.
     async fn index(&self, _key: &str, _text: &str) -> Result<()> {
         Ok(())
     }
 
     /// Remove an entry from the index. No-op for stateless scorers.
-    /// Called when `LongTermMemory::delete()` removes an entry.
+    /// Stateful scorers (e.g., bm25) should override to keep their index in sync.
+    ///
+    /// Callers should invoke this when deleting a memory entry.
     async fn remove(&self, _key: &str) -> Result<()> {
         Ok(())
     }

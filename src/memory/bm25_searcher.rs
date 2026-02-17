@@ -15,10 +15,20 @@ use crate::error::Result;
 const K1: f32 = 1.2;
 const B: f32 = 0.75;
 
+/// BM25 normalization ceiling. Scores are divided by
+/// `query_terms.len() * MAX_BM25_SCORE_PER_TERM` and clamped to 0.0..1.0.
+/// Empirically, a single-term BM25 score rarely exceeds ~3.0 in practice
+/// (IDF ≤ ~2.3 for typical corpus sizes, TF component ≤ K1+1 = 2.2).
+const MAX_BM25_SCORE_PER_TERM: f32 = 3.0;
+
 /// BM25 keyword scoring searcher.
 ///
 /// Maintains an inverted index of term frequencies for indexed documents.
-/// Stateless scoring (without index) still works but without IDF weighting.
+/// Scoring without a populated index still works but without IDF weighting.
+///
+/// Uses `std::sync::RwLock` (not `tokio::sync::RwLock`) because `score()`
+/// is a synchronous trait method. All callers are expected to run in blocking
+/// contexts (e.g., `spawn_blocking`), avoiding async runtime stalls.
 pub struct Bm25Searcher {
     /// Inverted index: term -> { doc_key -> term_frequency }
     index: RwLock<Bm25Index>,
@@ -123,8 +133,8 @@ impl MemorySearcher for Bm25Searcher {
             score += idf * tf_norm;
         }
 
-        // Normalize to 0.0..1.0 range (heuristic: cap at reasonable max)
-        let max_possible = query_terms.len() as f32 * 3.0; // rough upper bound
+        // Normalize to 0.0..1.0 range
+        let max_possible = query_terms.len() as f32 * MAX_BM25_SCORE_PER_TERM;
         (score / max_possible).clamp(0.0, 1.0)
     }
 
@@ -138,6 +148,7 @@ impl MemorySearcher for Bm25Searcher {
             for docs in index.term_docs.values_mut() {
                 docs.remove(key);
             }
+            index.term_docs.retain(|_, docs| !docs.is_empty());
             index.doc_count = index.doc_count.saturating_sub(1);
         }
 
@@ -229,9 +240,10 @@ mod tests {
         // Score with index — IDF should give "rust" more weight since it appears in fewer docs
         let after = searcher.score("rust is fast", "rust");
 
-        // Both should be positive
+        // Both should be positive, and IDF weighting should change the score
         assert!(before > 0.0);
         assert!(after > 0.0);
+        assert_ne!(before, after, "IDF weighting should change the score");
     }
 
     #[tokio::test]
