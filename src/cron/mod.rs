@@ -252,12 +252,8 @@ impl CronService {
 
         // Dispatch missed jobs outside the lock
         for payload in &missed_payloads {
-            let inbound = InboundMessage::new(
-                &payload.channel,
-                "cron",
-                &payload.chat_id,
-                &payload.message,
-            );
+            let inbound =
+                InboundMessage::new(&payload.channel, "cron", &payload.chat_id, &payload.message);
             if let Err(e) = self.bus.publish_inbound(inbound).await {
                 error!("Failed to dispatch missed job: {}", e);
             }
@@ -544,8 +540,11 @@ mod tests {
     #[test]
     fn test_cron_service_with_jitter() {
         let temp = tempdir().unwrap();
-        let service =
-            CronService::with_jitter(temp.path().join("jobs.json"), Arc::new(MessageBus::new()), 250);
+        let service = CronService::with_jitter(
+            temp.path().join("jobs.json"),
+            Arc::new(MessageBus::new()),
+            250,
+        );
         assert_eq!(service.jitter_ms, 250);
     }
 
@@ -636,13 +635,10 @@ mod tests {
         service.stop().await;
 
         // Verify the missed job was dispatched via the bus
-        let msg = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            bus.consume_inbound(),
-        )
-        .await
-        .expect("should receive dispatched missed job within timeout")
-        .expect("bus should have a message");
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(2), bus.consume_inbound())
+            .await
+            .expect("should receive dispatched missed job within timeout")
+            .expect("bus should have a message");
         assert_eq!(msg.content, "run_once_check");
 
         // Job should still be rescheduled to the future
