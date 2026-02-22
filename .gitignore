@@ -36,8 +36,7 @@ external/
 
 # Internal docs (local-only)
 docs/internal/
-docs/plans/*.md
-!docs/plans/TODO.md
+docs/plans/
 docs/LAUNCH.md
 docs/LAUNCH_BENCHMARK.md
 
