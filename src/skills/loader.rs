@@ -167,6 +167,14 @@ impl SkillsLoader {
                 return false;
             }
         }
+
+        // All declared skill dependencies must exist in skill directories.
+        for dep in &skill.metadata.depends {
+            if self.load_skill(dep).is_none() {
+                return false;
+            }
+        }
+
         true
     }
 
@@ -292,53 +300,13 @@ fn escape_xml(input: &str) -> String {
 }
 
 fn parse_frontmatter_metadata(frontmatter: &str) -> SkillMetadata {
-    let mut metadata = SkillMetadata::default();
-
-    for raw_line in frontmatter.lines() {
-        let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if let Some((key, value)) = line.split_once(':') {
-            let key = key.trim();
-            let value = value.trim();
-            match key {
-                "name" => metadata.name = unquote(value),
-                "description" => metadata.description = unquote(value),
-                "version" => {
-                    let parsed = unquote(value);
-                    if !parsed.is_empty() {
-                        metadata.version = Some(parsed);
-                    }
-                }
-                "homepage" => {
-                    let parsed = unquote(value);
-                    if !parsed.is_empty() {
-                        metadata.homepage = Some(parsed);
-                    }
-                }
-                "metadata" => {
-                    let parsed = unquote(value);
-                    if !parsed.is_empty() {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&parsed) {
-                            metadata.metadata = Some(json);
-                        }
-                    }
-                }
-                _ => {}
-            }
+    match serde_yaml::from_str::<SkillMetadata>(frontmatter) {
+        Ok(meta) => meta,
+        Err(e) => {
+            tracing::warn!("Failed to parse skill frontmatter: {}", e);
+            SkillMetadata::default()
         }
     }
-
-    metadata
-}
-
-fn unquote(input: &str) -> String {
-    input
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_string()
 }
 
 /// Map `cfg!(target_os)` to OpenClaw's platform strings.
@@ -735,5 +703,70 @@ Use wttr.in.
             "unexpected os: {}",
             os
         );
+    }
+
+    #[test]
+    fn test_parse_new_manifest_fields() {
+        let loader = SkillsLoader::with_defaults();
+        let content = "---\nname: sea-orders\ndescription: SEA order management\nversion: 1.0.0\nauthor: Kitakod Ventures\nlicense: MIT\ntags:\n  - messaging\n  - sea\ndepends:\n  - longterm-memory\nconflicts:\n  - orders-lite\nenv_needed:\n  - name: WHATSAPP_PHONE_NUMBER_ID\n    description: Your phone number ID\n    required: true\n  - name: WEBHOOK_TOKEN\n    description: Webhook verify token\n    required: false\nmetadata: {\"zeptoclaw\": {\"emoji\": \"\u{1F6D2}\"}}\n---\nBody.\n";
+        let (meta, _) = loader.parse_frontmatter(content);
+        assert_eq!(meta.author.as_deref(), Some("Kitakod Ventures"));
+        assert_eq!(meta.license.as_deref(), Some("MIT"));
+        assert_eq!(meta.tags, vec!["messaging", "sea"]);
+        assert_eq!(meta.depends, vec!["longterm-memory"]);
+        assert_eq!(meta.conflicts, vec!["orders-lite"]);
+        assert_eq!(meta.env_needed.len(), 2);
+        assert_eq!(meta.env_needed[0].name, "WHATSAPP_PHONE_NUMBER_ID");
+        assert_eq!(meta.env_needed[0].description, "Your phone number ID");
+        assert!(meta.env_needed[0].required);
+        assert!(!meta.env_needed[1].required);
+    }
+
+    #[test]
+    fn test_old_skills_load_without_new_fields() {
+        let loader = SkillsLoader::with_defaults();
+        let content = "---\nname: old\ndescription: Old skill\n---\nBody.";
+        let (meta, _) = loader.parse_frontmatter(content);
+        assert!(meta.tags.is_empty());
+        assert!(meta.depends.is_empty());
+        assert!(meta.author.is_none());
+    }
+
+    #[test]
+    fn test_depends_missing_makes_skill_unavailable() {
+        let temp = tempfile::tempdir().unwrap();
+        let ws = temp.path().join("skills");
+        std::fs::create_dir_all(ws.join("child")).unwrap();
+        std::fs::write(
+            ws.join("child/SKILL.md"),
+            "---\nname: child\ndescription: Needs parent\ndepends:\n  - nonexistent-parent\n---\nBody.",
+        )
+        .unwrap();
+
+        let loader = SkillsLoader::new(ws, Some(temp.path().join("empty")));
+        let skill = loader.load_skill("child").unwrap();
+        assert!(!loader.check_requirements(&skill));
+    }
+
+    #[test]
+    fn test_depends_present_does_not_block() {
+        let temp = tempfile::tempdir().unwrap();
+        let ws = temp.path().join("skills");
+        std::fs::create_dir_all(ws.join("parent")).unwrap();
+        std::fs::create_dir_all(ws.join("child")).unwrap();
+        std::fs::write(
+            ws.join("parent/SKILL.md"),
+            "---\nname: parent\ndescription: Parent\n---\nBody.",
+        )
+        .unwrap();
+        std::fs::write(
+            ws.join("child/SKILL.md"),
+            "---\nname: child\ndescription: Needs parent\ndepends:\n  - parent\n---\nBody.",
+        )
+        .unwrap();
+
+        let loader = SkillsLoader::new(ws, Some(temp.path().join("empty")));
+        let skill = loader.load_skill("child").unwrap();
+        assert!(loader.check_requirements(&skill));
     }
 }
