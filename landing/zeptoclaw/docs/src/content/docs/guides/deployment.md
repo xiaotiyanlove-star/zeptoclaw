@@ -200,5 +200,5 @@ ZeptoClaw is very lightweight:
 |----------|-------------|
 | CPU | Any modern CPU (ARM64 or x86_64) |
 | RAM | ~6MB RSS at idle |
-| Disk | ~5MB binary + data |
+| Disk | ~4MB binary + data |
 | Network | Outbound HTTPS to LLM provider APIs |

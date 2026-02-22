@@ -12,6 +12,9 @@ Channels are the input/output interfaces for your agent. They receive messages f
 | **Telegram** | Bot API (long polling) | Bidirectional |
 | **Slack** | Web API | Outbound |
 | **Discord** | Gateway WebSocket + REST | Bidirectional |
+| **WhatsApp Cloud** | Webhook + REST API | Bidirectional |
+| **Lark** | WebSocket (pbbp2 frames) | Bidirectional |
+| **Email** | IMAP IDLE + SMTP | Bidirectional |
 | **Webhook** | HTTP POST | Inbound |
 | **CLI** | stdin/stdout | Bidirectional |
 
@@ -24,6 +27,16 @@ zeptoclaw gateway
 ```
 
 The gateway starts each enabled channel and routes messages through the agent loop via an async MessageBus.
+
+You can expose your gateway to the internet using a tunnel:
+
+```bash
+# With tunnel (auto-detect provider)
+zeptoclaw gateway --tunnel auto
+
+# With specific tunnel provider
+zeptoclaw gateway --tunnel cloudflare
+```
 
 ## Telegram
 
@@ -99,6 +112,76 @@ curl -X POST http://localhost:8080/webhook \
   -H "Authorization: Bearer my-secret-token" \
   -H "Content-Type: application/json" \
   -d '{"message": "Hello agent", "chat_id": "user-123"}'
+```
+
+## WhatsApp Cloud
+
+Official WhatsApp Cloud API integration (no bridge dependency):
+
+```json
+{
+  "channels": {
+    "whatsapp_cloud": {
+      "enabled": true,
+      "phone_number_id": "123456789",
+      "access_token": "EAAx...",
+      "verify_token": "my-verify-token"
+    }
+  }
+}
+```
+
+## Lark
+
+Lark/Feishu messaging integration via WebSocket:
+
+```json
+{
+  "channels": {
+    "lark": {
+      "enabled": true,
+      "app_id": "cli_...",
+      "app_secret": "..."
+    }
+  }
+}
+```
+
+## Email
+
+Email channel using IMAP IDLE for inbound and SMTP for outbound (feature-gated: `--features channel-email`):
+
+```json
+{
+  "channels": {
+    "email": {
+      "enabled": true,
+      "imap_host": "imap.gmail.com",
+      "imap_port": 993,
+      "smtp_host": "smtp.gmail.com",
+      "smtp_port": 587,
+      "username": "agent@example.com",
+      "password": "app-password"
+    }
+  }
+}
+```
+
+## Sender allowlists
+
+All channels support the `deny_by_default` config option for sender allowlists. When enabled, only explicitly allowed sender IDs can interact with the agent. This works on all channels including Telegram, Discord, WhatsApp Cloud, Lark, Email, and Webhook.
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "bot_token": "123456:ABC...",
+      "deny_by_default": true,
+      "allowed_senders": ["user_id_1", "user_id_2"]
+    }
+  }
+}
 ```
 
 ## Container isolation

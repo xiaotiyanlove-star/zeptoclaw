@@ -64,6 +64,16 @@ ZeptoClaw is configured via `~/.zeptoclaw/config.json`. All fields have sensible
       "bind": "0.0.0.0",
       "port": 8080,
       "auth_token": "my-secret"
+    },
+    "whatsapp_cloud": {
+      "enabled": false,
+      "phone_number_id": "...",
+      "access_token": "..."
+    },
+    "lark": {
+      "enabled": false,
+      "app_id": "...",
+      "app_secret": "..."
     }
   },
   "agents": {
@@ -129,6 +139,35 @@ ZeptoClaw is configured via `~/.zeptoclaw/config.json`. All fields have sensible
 | `approval.enabled` | bool | `false` | Enable approval gate |
 | `approval.require_approval` | array | `[]` | Tools requiring approval |
 | `approval.auto_approve` | array | `[]` | Tools auto-approved |
+
+## Safety section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `safety.enabled` | bool | `true` | Enable safety layer |
+| `safety.leak_detection_enabled` | bool | `true` | Enable secret leak detection |
+
+## Compaction section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `compaction.enabled` | bool | `false` | Enable context compaction |
+| `compaction.context_limit` | int | `100000` | Max tokens before compaction |
+| `compaction.threshold` | float | `0.80` | Compaction trigger threshold |
+
+## Routines section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `routines.enabled` | bool | `false` | Enable routines engine |
+| `routines.cron_interval_secs` | int | `60` | Cron tick interval |
+| `routines.max_concurrent` | int | `3` | Max concurrent routine executions |
+
+## Memory section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `memory.backend` | string | `"builtin"` | Search backend: builtin, bm25, embedding, hnsw |
 
 ## Config validation
 

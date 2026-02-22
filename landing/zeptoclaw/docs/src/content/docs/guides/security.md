@@ -94,6 +94,95 @@ The `message` tool validates that outbound messages target known channels only (
 
 Plugin command templates automatically shell-escape all parameter values to prevent command injection. Parameters are wrapped in single quotes with proper escaping of embedded quotes.
 
+## Prompt injection detection
+
+ZeptoClaw includes a multi-layered prompt injection detector that runs on all LLM inputs:
+
+- **Aho-Corasick matcher** — 17 patterns for common injection phrases ("ignore previous instructions", "system prompt override", etc.)
+- **Regex rules** — 4 additional patterns for encoded or obfuscated injection attempts
+
+The safety layer is enabled by default. Configure via:
+
+```bash
+export ZEPTOCLAW_SAFETY_ENABLED=true  # default
+```
+
+## Secret leak scanning
+
+Before any content reaches the LLM, a leak detector scans for 22 regex patterns covering:
+
+- API keys (AWS, OpenAI, Anthropic, Google, Stripe, etc.)
+- Authentication tokens (JWT, Bearer, OAuth)
+- Private keys (RSA, SSH, PGP)
+- Database connection strings
+- Cloud credentials
+
+Detected secrets can be blocked, redacted, or warned about based on configuration.
+
+```bash
+export ZEPTOCLAW_SAFETY_LEAK_DETECTION_ENABLED=true  # default
+```
+
+## Security policy engine
+
+A 7-rule policy engine enforces:
+
+1. System file access prevention
+2. Crypto key extraction blocking
+3. SQL injection pattern detection
+4. Shell injection prevention
+5. Encoded exploit detection (base64, hex payloads)
+6. Privilege escalation blocking
+7. Data exfiltration prevention
+
+## Input validation
+
+All inputs are validated before processing:
+
+- **Length limit** — 100KB maximum input size
+- **Null byte detection** — Blocks null bytes used in injection attacks
+- **Whitespace ratio analysis** — Detects padding-based attacks
+- **Repetition detection** — Catches repeated-pattern attacks
+
+## Secret encryption at rest
+
+API keys and tokens in `config.json` can be encrypted using XChaCha20-Poly1305 AEAD with Argon2id key derivation:
+
+```bash
+# Encrypt all plaintext secrets
+zeptoclaw secrets encrypt
+
+# Decrypt for editing
+zeptoclaw secrets decrypt
+
+# Rotate to a new master key
+zeptoclaw secrets rotate
+```
+
+Encrypted values are stored as `ENC[version:salt:nonce:ciphertext]` in the config file. The master key can be provided via:
+- `ZEPTOCLAW_MASTER_KEY` environment variable (hex-encoded 32 bytes)
+- A key file
+- Interactive prompt
+
+## Sender allowlists
+
+All channels support deny-by-default sender allowlists:
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "bot_token": "...",
+      "deny_by_default": true,
+      "allow_from": ["123456789"]
+    }
+  }
+}
+```
+
+When `deny_by_default` is `true` and the allowlist is empty, all messages are rejected.
+
 ## Best practices
 
 1. **Always use container isolation in production** — Run `zeptoclaw gateway --containerized`
@@ -104,3 +193,5 @@ Plugin command templates automatically shell-escape all parameter values to prev
 6. **Monitor with telemetry** — Enable Prometheus export for observability
 7. **Set agent timeouts** — Prevent long-running sessions with `agent_timeout_secs`
 8. **Use tool whitelists** — Restrict sub-agent tools via templates
+9. **Encrypt secrets at rest** — Use `zeptoclaw secrets encrypt` to protect API keys in config
+10. **Enable sender allowlists** — Use `deny_by_default: true` on production channels

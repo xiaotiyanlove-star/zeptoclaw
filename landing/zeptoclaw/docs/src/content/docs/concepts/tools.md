@@ -25,7 +25,7 @@ Every tool receives a `ToolContext` containing:
 
 ## Built-in tools
 
-ZeptoClaw ships with 17 built-in tools:
+ZeptoClaw ships with 29 built-in tools:
 
 | Tool | Description |
 |------|-------------|
@@ -36,6 +36,7 @@ ZeptoClaw ships with 17 built-in tools:
 | `edit_file` | Search-and-replace edits |
 | `web_search` | Web search via Brave API |
 | `web_fetch` | Fetch and parse web pages |
+| `http_request` | General-purpose HTTP client for arbitrary API calls |
 | `memory` | Search workspace memory (markdown files) |
 | `longterm_memory` | Persistent key-value store with categories and tags |
 | `message` | Send proactive messages to channels |
@@ -44,7 +45,20 @@ ZeptoClaw ships with 17 built-in tools:
 | `delegate` | Create sub-agents (agent swarms) |
 | `whatsapp` | Send WhatsApp messages via Cloud API |
 | `gsheets` | Read and write Google Sheets |
-| `r8r` | Content rating and analysis |
+| `r8r` | R8r workflow integration |
+| `reminder` | Persistent reminders with cron delivery |
+| `git` | Git operations (status, diff, log, commit) |
+| `project` | Project scaffolding and management |
+| `stripe` | Stripe API integration for payment operations |
+| `pdf_read` | Extract text from PDF files (feature-gated) |
+| `transcribe` | Audio transcription with provider abstraction |
+| `screenshot` | Capture webpage screenshots (feature-gated) |
+| `find_skills` | Search the skill registry |
+| `install_skill` | Install skills from the registry |
+| `android` | Android device control via ADB (feature-gated) |
+| `hardware` | GPIO, serial, and USB peripheral operations (feature-gated) |
+
+Some tools are feature-gated and require compile-time flags: `--features tool-pdf` for PDF, `--features screenshot` for screenshots, `--features android` for Android, `--features hardware` for hardware peripherals.
 
 ## Parallel execution
 

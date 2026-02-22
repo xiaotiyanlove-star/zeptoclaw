@@ -47,6 +47,47 @@ Every config field can be overridden with an environment variable. The naming co
 | `ZEPTOCLAW_PROVIDERS_FALLBACK_ENABLED` | `false` | Enable fallback provider |
 | `ZEPTOCLAW_PROVIDERS_FALLBACK_PROVIDER` | — | Fallback provider name |
 
+## Safety settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_SAFETY_ENABLED` | `true` | Enable safety layer |
+| `ZEPTOCLAW_SAFETY_LEAK_DETECTION_ENABLED` | `true` | Enable secret leak detection |
+
+## Compaction settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_COMPACTION_ENABLED` | `false` | Enable context compaction |
+| `ZEPTOCLAW_COMPACTION_CONTEXT_LIMIT` | `100000` | Max tokens before compaction |
+| `ZEPTOCLAW_COMPACTION_THRESHOLD` | `0.80` | Compaction trigger threshold |
+
+## Routines settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_ROUTINES_ENABLED` | `false` | Enable routines engine |
+| `ZEPTOCLAW_ROUTINES_CRON_INTERVAL_SECS` | `60` | Cron tick interval |
+| `ZEPTOCLAW_ROUTINES_MAX_CONCURRENT` | `3` | Max concurrent routine executions |
+
+## Memory settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_MEMORY_BACKEND` | `"builtin"` | Search backend: builtin, bm25, embedding, hnsw |
+
+## Tunnel settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_TUNNEL_PROVIDER` | — | Tunnel provider (cloudflare, ngrok, tailscale, auto) |
+
+## Encryption settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZEPTOCLAW_MASTER_KEY` | — | Hex-encoded 32-byte master key for secret encryption |
+
 ## Compile-time defaults
 
 These are set at build time, not runtime:

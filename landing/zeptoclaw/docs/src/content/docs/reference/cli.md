@@ -58,6 +58,7 @@ zeptoclaw gateway [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `--containerized [RUNTIME]` | Enable container isolation (auto, docker, apple) |
+| `--tunnel [PROVIDER]` | Enable tunnel (auto, cloudflare, ngrok, tailscale) |
 
 ### Examples
 
@@ -166,8 +167,12 @@ Show template details including system prompt, model, and overrides.
 Run the interactive setup wizard.
 
 ```bash
-zeptoclaw onboard
+zeptoclaw onboard [OPTIONS]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--full` | Run the full 10-step wizard instead of express setup |
 
 Walks through provider key setup, channel configuration, and workspace initialization.
 
@@ -188,3 +193,150 @@ zeptoclaw skills list
 ```
 
 List available skills from `~/.zeptoclaw/skills/`.
+
+## secrets
+
+Manage secret encryption at rest.
+
+```bash
+zeptoclaw secrets <SUBCOMMAND>
+```
+
+### secrets encrypt
+
+Encrypt plaintext API keys and tokens in your config file using XChaCha20-Poly1305.
+
+```bash
+zeptoclaw secrets encrypt
+```
+
+### secrets decrypt
+
+Decrypt secrets for editing.
+
+```bash
+zeptoclaw secrets decrypt
+```
+
+### secrets rotate
+
+Re-encrypt with a new master key.
+
+```bash
+zeptoclaw secrets rotate
+```
+
+## memory
+
+Manage long-term memory from the CLI.
+
+```bash
+zeptoclaw memory <SUBCOMMAND>
+```
+
+### memory list
+
+```bash
+zeptoclaw memory list [--category <CATEGORY>]
+```
+
+### memory search
+
+```bash
+zeptoclaw memory search <QUERY>
+```
+
+### memory set
+
+```bash
+zeptoclaw memory set <KEY> <VALUE> [--category <CATEGORY>] [--tags <TAGS>]
+```
+
+### memory delete
+
+```bash
+zeptoclaw memory delete <KEY>
+```
+
+### memory stats
+
+```bash
+zeptoclaw memory stats
+```
+
+## tools
+
+Discover available tools.
+
+```bash
+zeptoclaw tools <SUBCOMMAND>
+```
+
+### tools list
+
+List all available tools and their status.
+
+```bash
+zeptoclaw tools list
+```
+
+### tools info
+
+Show detailed info about a specific tool.
+
+```bash
+zeptoclaw tools info <NAME>
+```
+
+## watch
+
+Monitor a URL for changes.
+
+```bash
+zeptoclaw watch <URL> [OPTIONS]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--interval <DURATION>` | Check interval (e.g., 1h, 30m) |
+| `--notify <CHANNEL>` | Channel for notifications |
+
+## channel
+
+Manage channels.
+
+```bash
+zeptoclaw channel <SUBCOMMAND>
+```
+
+### channel list
+
+```bash
+zeptoclaw channel list
+```
+
+### channel setup
+
+```bash
+zeptoclaw channel setup <NAME>
+```
+
+### channel test
+
+```bash
+zeptoclaw channel test <NAME>
+```
+
+## migrate
+
+Import config and skills from an OpenClaw installation.
+
+```bash
+zeptoclaw migrate [OPTIONS]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--from <PATH>` | Path to OpenClaw installation |
+| `--dry-run` | Preview migration without writing files |
+| `--yes` | Non-interactive (skip prompts) |

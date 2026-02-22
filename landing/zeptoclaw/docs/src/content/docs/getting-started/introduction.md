@@ -3,13 +3,13 @@ title: Introduction
 description: What is ZeptoClaw and why should you use it?
 ---
 
-**ZeptoClaw** is an ultra-lightweight personal AI assistant built in Rust. It packages streaming LLM responses, agent swarms, a plugin system, batch processing, 5 messaging channels, and container isolation into a single ~5MB binary.
+**ZeptoClaw** is an ultra-lightweight personal AI assistant built in Rust. It packages streaming LLM responses, agent swarms, a plugin system, batch processing, 8 messaging channels, and container isolation into a single ~4MB binary.
 
 ## Why ZeptoClaw?
 
 ### Tiny footprint
 
-- **~5MB binary** — Smaller than most app icons
+- **~4MB binary** — Smaller than most app icons
 - **~6MB RSS** — Runs on the cheapest VPS
 - **~50ms startup** — Ready before you finish typing
 
@@ -17,7 +17,7 @@ description: What is ZeptoClaw and why should you use it?
 
 - **Memory safe** — No runtime crashes, no garbage collector
 - **Async-first** — Tokio runtime for non-blocking I/O
-- **1,100+ tests** — Thoroughly tested across unit, integration, and doc tests
+- **2,300+ tests** — Thoroughly tested across unit, integration, and doc tests
 
 ### Production-ready features
 
@@ -25,7 +25,10 @@ description: What is ZeptoClaw and why should you use it?
 - **Agent swarms** — Delegate subtasks to specialized sub-agents
 - **Plugin system** — Extend with JSON manifest plugins
 - **Container isolation** — Run shell commands in Docker or Apple Container
-- **5 channels** — Telegram, Slack, Discord, Webhook, and CLI
+- **8 channels** — Telegram, Slack, Discord, WhatsApp Cloud, Lark, Email, Webhook, and CLI
+- **29 built-in tools** — Shell, filesystem, web, git, stripe, PDF, transcription, and more
+- **Agent modes** — Observer, Assistant, Autonomous — category-based tool access control
+- **Secret encryption** — XChaCha20-Poly1305 AEAD for API keys at rest
 
 ## What can you build?
 
@@ -54,12 +57,12 @@ The agent receives a message, builds a system prompt with context, calls an LLM 
 
 | Feature | ZeptoClaw | LangChain | AutoGPT |
 |---------|-----------|-----------|---------|
-| Binary size | ~5MB | 100MB+ | 200MB+ |
+| Binary size | ~4MB | 100MB+ | 200MB+ |
 | Language | Rust | Python | Python |
 | Self-hosted | Single binary | pip install | Docker |
 | Container isolation | Built-in | No | Docker only |
 | Streaming | SSE native | Varies | No |
-| Tests | 1,100+ | Varies | Varies |
+| Tests | 2,300+ | Varies | Varies |
 
 ## Next steps
 

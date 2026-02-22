@@ -58,13 +58,16 @@ Pre-built binaries are available on the [releases page](https://github.com/qhkm/
 
 ```bash
 # Linux x86_64
-curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-linux-x64.tar.gz | tar xz
+curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-linux-x86_64 -o zeptoclaw
+chmod +x zeptoclaw
 
 # macOS (Apple Silicon)
-curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-darwin-arm64.tar.gz | tar xz
+curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-macos-aarch64 -o zeptoclaw
+chmod +x zeptoclaw
 
 # macOS (Intel)
-curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-darwin-x64.tar.gz | tar xz
+curl -L https://github.com/qhkm/zeptoclaw/releases/latest/download/zeptoclaw-macos-x86_64 -o zeptoclaw
+chmod +x zeptoclaw
 ```
 
 ## Build from source
@@ -75,7 +78,7 @@ To build from source, you need Rust 1.70+:
 git clone https://github.com/qhkm/zeptoclaw.git
 cd zeptoclaw
 
-# Build release binary (~5MB)
+# Build release binary (~4MB)
 cargo build --release
 
 # Verify
@@ -86,7 +89,7 @@ cargo build --release
 
 ```bash
 zeptoclaw --version
-# zeptoclaw 0.2.0
+# zeptoclaw 0.5.0
 
 zeptoclaw --help
 # Shows available commands

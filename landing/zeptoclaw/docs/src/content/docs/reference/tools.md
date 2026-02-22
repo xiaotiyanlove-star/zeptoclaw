@@ -6,7 +6,7 @@ tableOfContents:
   maxHeadingLevel: 3
 ---
 
-ZeptoClaw ships with 17 built-in tools. Each tool is available to the agent by default unless restricted by the approval gate or a template's tool whitelist.
+ZeptoClaw ships with 29 built-in tools. Each tool is available to the agent by default unless restricted by the approval gate or a template's tool whitelist.
 
 ## shell
 
@@ -168,3 +168,111 @@ Content rating and analysis tool.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | Yes | Content to analyze |
+
+## reminder
+
+Persistent reminders with cron-based delivery.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | One of: add, list, complete, snooze, overdue |
+| `title` | string | Varies | Reminder title |
+| `due` | string | Varies | Due date/time |
+
+## git
+
+Git operations as an agent tool.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | One of: status, diff, log, commit |
+| `message` | string | Varies | Commit message (for commit action) |
+
+## project
+
+Project scaffolding and management.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | Project operation to perform |
+
+## stripe
+
+Stripe API integration for payment operations.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | Stripe API action |
+| `params` | object | Varies | Action-specific parameters |
+
+## http_request
+
+General-purpose HTTP client for arbitrary API calls.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `method` | string | Yes | HTTP method (GET, POST, PUT, DELETE, etc.) |
+| `url` | string | Yes | Request URL |
+| `headers` | object | No | Request headers |
+| `body` | string | No | Request body |
+
+## pdf_read
+
+Extract text from PDF files. Requires `--features tool-pdf`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Path to PDF file |
+
+## transcribe
+
+Audio transcription with provider abstraction.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Path to audio file |
+| `provider` | string | No | Transcription provider |
+
+## screenshot
+
+Capture webpage screenshots. Requires `--features screenshot`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | URL to screenshot |
+
+## find_skills
+
+Search the skill registry for available skills.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Search query |
+
+## install_skill
+
+Install a skill from the registry.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Skill name to install |
+
+## android
+
+Control an Android device via ADB. Requires `--features android`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | One of: screen, tap, type, swipe, scroll, back, home, screenshot, launch, open_url, etc. |
+| Various | Various | Varies | Action-specific parameters (x, y, text, package, url, etc.) |
+
+**Security:** URL scheme allowlist (blocks javascript:, file:, intent:), shell metacharacter blocking, busybox/toybox wrapper detection.
+
+## hardware
+
+GPIO, serial, and USB peripheral operations. Requires `--features hardware`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | Yes | Hardware operation to perform |
+| `device` | string | Varies | Device identifier |
