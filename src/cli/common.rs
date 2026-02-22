@@ -8,6 +8,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use tracing::{info, warn};
 
+use std::time::Duration;
 use zeptoclaw::agent::{AgentLoop, ContextBuilder, RuntimeContext};
 use zeptoclaw::auth::{self, AuthMethod};
 use zeptoclaw::bus::MessageBus;
@@ -18,10 +19,12 @@ use zeptoclaw::cron::CronService;
 use zeptoclaw::memory::factory::create_searcher_with_provider;
 use zeptoclaw::providers::{
     provider_config_by_name, resolve_runtime_providers, ClaudeProvider, FallbackProvider,
-    GeminiProvider, LLMProvider, OpenAIProvider, RetryProvider, RuntimeProviderSelection,
+    GeminiProvider, LLMProvider, OpenAIProvider, ProviderPlugin, RetryProvider,
+    RuntimeProviderSelection,
 };
 use zeptoclaw::runtime::{create_runtime, NativeRuntime};
 use zeptoclaw::session::SessionManager;
+use zeptoclaw::skills::registry::{ClawHubRegistry, SearchCache};
 use zeptoclaw::skills::SkillsLoader;
 use zeptoclaw::tools::cron::CronTool;
 use zeptoclaw::tools::delegate::DelegateTool;
@@ -29,8 +32,9 @@ use zeptoclaw::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, Writ
 use zeptoclaw::tools::shell::ShellTool;
 use zeptoclaw::tools::spawn::SpawnTool;
 use zeptoclaw::tools::{
-    EchoTool, GitTool, GoogleSheetsTool, HttpRequestTool, MemoryGetTool, MemorySearchTool,
-    MessageTool, PdfReadTool, ProjectTool, R8rTool, WebFetchTool, WebSearchTool, WhatsAppTool,
+    EchoTool, FindSkillsTool, GitTool, GoogleSheetsTool, HttpRequestTool, InstallSkillTool,
+    MemoryGetTool, MemorySearchTool, MessageTool, PdfReadTool, ProjectTool, R8rTool,
+    TranscribeTool, WebFetchTool, WebSearchTool, WhatsAppTool,
 };
 
 /// Read a line from stdin, trimming whitespace.
@@ -812,6 +816,22 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
         }
     }
 
+    if config.tools.transcribe.enabled {
+        if let Some(api_key) = &config.tools.transcribe.groq_api_key {
+            if tool_enabled("transcribe") {
+                match TranscribeTool::new(api_key, &config.tools.transcribe.model) {
+                    Ok(tool) => {
+                        agent.register_tool(Box::new(tool)).await;
+                        info!(
+                            "Registered transcribe tool (model: {})",
+                            config.tools.transcribe.model
+                        );
+                    }
+                    Err(e) => warn!("Failed to initialize transcribe tool: {}", e),
+                }
+            }
+        }
+    }
     if tool_enabled("reminder") {
         match zeptoclaw::tools::reminder::ReminderTool::new(Some(cron_service.clone())) {
             Ok(tool) => {
@@ -819,6 +839,45 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
                 info!("Registered reminder tool");
             }
             Err(e) => warn!("Failed to initialize reminder tool: {}", e),
+        }
+    }
+
+    // Register ClawHub skills marketplace tools
+    if config.tools.skills.enabled && config.tools.skills.clawhub.enabled {
+        let cache = Arc::new(SearchCache::new(
+            config.tools.skills.search_cache.max_size,
+            Duration::from_secs(config.tools.skills.search_cache.ttl_seconds),
+        ));
+        let registry = Arc::new(ClawHubRegistry::new(
+            &config.tools.skills.clawhub.base_url,
+            config.tools.skills.clawhub.auth_token.clone(),
+            cache,
+        ));
+        if tool_enabled("find_skills") {
+            agent
+                .register_tool(Box::new(FindSkillsTool::new(Arc::clone(&registry))))
+                .await;
+            info!("Registered find_skills tool");
+        }
+        if tool_enabled("install_skill") {
+            let skills_dir = config
+                .skills
+                .workspace_dir
+                .as_deref()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    zeptoclaw::config::Config::dir()
+                        .join("skills")
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            agent
+                .register_tool(Box::new(InstallSkillTool::new(
+                    Arc::clone(&registry),
+                    skills_dir,
+                )))
+                .await;
+            info!("Registered install_skill tool");
         }
     }
 
@@ -964,6 +1023,53 @@ Enable runtime.allow_fallback_to_native to opt in to native fallback.",
                 provider = selection.name,
                 "Registered provider in model-switch registry"
             );
+        }
+    }
+
+    // Register provider plugins (JSON-RPC 2.0 over stdin/stdout).
+    // Plugin providers are registered only when no runtime provider (Claude/OpenAI/etc.)
+    // has been configured. The first plugin becomes primary; subsequent plugins are
+    // chained as fallbacks when `providers.fallback.enabled` is true.
+    if agent.provider().await.is_none() && !config.providers.plugins.is_empty() {
+        let mut plugin_iter = config.providers.plugins.iter();
+
+        // First plugin becomes the primary provider
+        if let Some(first_cfg) = plugin_iter.next() {
+            let first = ProviderPlugin::new(
+                first_cfg.name.clone(),
+                first_cfg.command.clone(),
+                first_cfg.args.clone(),
+            );
+            let mut chain: Box<dyn LLMProvider> = Box::new(first);
+            let mut chain_names = vec![first_cfg.name.clone()];
+
+            // Additional plugins are appended as fallbacks when enabled
+            if config.providers.fallback.enabled {
+                for plugin_cfg in plugin_iter {
+                    let fallback = ProviderPlugin::new(
+                        plugin_cfg.name.clone(),
+                        plugin_cfg.command.clone(),
+                        plugin_cfg.args.clone(),
+                    );
+                    chain = Box::new(FallbackProvider::new(chain, Box::new(fallback)));
+                    chain_names.push(plugin_cfg.name.clone());
+                }
+            }
+
+            let chain_label = chain_names.join(" -> ");
+            let plugin_count = chain_names.len();
+            let chain = apply_retry_wrapper(chain, &config);
+            agent.set_provider(chain).await;
+
+            if plugin_count > 1 {
+                info!(
+                    plugin_count = plugin_count,
+                    plugin_chain = %chain_label,
+                    "Configured provider plugin fallback chain"
+                );
+            } else {
+                info!("Configured provider plugin: {}", chain_label);
+            }
         }
     }
 

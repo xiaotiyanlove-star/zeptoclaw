@@ -118,6 +118,78 @@ pub struct Config {
     pub tool_profiles: HashMap<String, Option<Vec<String>>>,
     /// Project management tool configuration (GitHub Issues, Jira, Linear).
     pub project: ProjectConfig,
+    /// HTTP health server configuration.
+    #[serde(default)]
+    pub health: HealthConfig,
+    /// Device event system configuration (USB hotplug monitoring).
+    #[serde(default)]
+    pub devices: DevicesConfig,
+    /// Logging configuration (format, level, optional file output).
+    #[serde(default)]
+    pub logging: LoggingConfig,
+}
+
+// ============================================================================
+// Logging Configuration
+// ============================================================================
+
+/// Log output format.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    /// Default tracing pretty-print.
+    Pretty,
+    /// Component-tagged format — grep-friendly (`[component] message`).
+    Component,
+    /// Structured JSON lines for log aggregators.
+    Json,
+}
+
+fn default_log_format() -> LogFormat {
+    LogFormat::Component
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
+}
+
+/// Logging configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    /// Log output format (default: component).
+    #[serde(default = "default_log_format")]
+    pub format: LogFormat,
+    /// Optional path to a log file. When set and format is `json`, logs are
+    /// written to this file in addition to (or instead of) stdout.
+    pub file: Option<String>,
+    /// Log level filter string (default: "info").
+    #[serde(default = "default_log_level")]
+    pub level: String,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            format: default_log_format(),
+            file: None,
+            level: default_log_level(),
+        }
+    }
+}
+
+// ============================================================================
+// Device Event System Configuration
+// ============================================================================
+
+/// Device event monitoring configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DevicesConfig {
+    /// Enable device event monitoring (default: false).
+    #[serde(default)]
+    pub enabled: bool,
+    /// Monitor USB hotplug events (default: false).
+    #[serde(default)]
+    pub monitor_usb: bool,
 }
 
 // ============================================================================
@@ -176,6 +248,42 @@ impl Default for PairingConfig {
             enabled: false,
             max_attempts: 5,
             lockout_secs: 300,
+        }
+    }
+}
+
+// ============================================================================
+// Health Server Configuration
+// ============================================================================
+
+fn default_health_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_health_port() -> u16 {
+    9090
+}
+
+/// HTTP health server configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthConfig {
+    /// Whether the health HTTP server is enabled (default: false).
+    #[serde(default)]
+    pub enabled: bool,
+    /// Host/IP to bind the health server (default: 127.0.0.1).
+    #[serde(default = "default_health_host")]
+    pub host: String,
+    /// Port to bind the health server (default: 9090).
+    #[serde(default = "default_health_port")]
+    pub port: u16,
+}
+
+impl Default for HealthConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host: default_health_host(),
+            port: default_health_port(),
         }
     }
 }
@@ -881,6 +989,9 @@ pub struct ProvidersConfig {
     pub fallback: FallbackConfig,
     /// Provider rotation configuration for 3+ health-aware providers
     pub rotation: RotationConfig,
+    /// External binary provider plugins (JSON-RPC 2.0 over stdin/stdout)
+    #[serde(default)]
+    pub plugins: Vec<ProviderPluginConfig>,
 }
 
 /// Generic provider configuration
@@ -902,6 +1013,32 @@ impl ProviderConfig {
     pub fn resolved_auth_method(&self) -> crate::auth::AuthMethod {
         crate::auth::AuthMethod::from_option(self.auth_method.as_deref())
     }
+}
+
+/// Configuration for an external binary LLM provider plugin.
+///
+/// The binary is invoked once per `chat()` call and communicates via
+/// JSON-RPC 2.0 over stdin/stdout.
+///
+/// # Example (config.json)
+/// ```json
+/// {
+///   "providers": {
+///     "plugins": [
+///       {"name": "myprovider", "command": "/usr/local/bin/my-provider", "args": ["--mode", "chat"]}
+///     ]
+///   }
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderPluginConfig {
+    /// Unique provider name. Plugin providers activate when no built-in provider (Anthropic/OpenAI) is configured.
+    pub name: String,
+    /// Path to the provider binary
+    pub command: String,
+    /// Additional arguments passed to the binary
+    #[serde(default)]
+    pub args: Vec<String>,
 }
 
 /// Retry behavior for runtime provider calls.
@@ -1007,6 +1144,24 @@ impl Default for GatewayConfig {
 // Tools Configuration
 // ============================================================================
 
+/// Voice transcription tool configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct TranscribeConfig {
+    /// Enable the transcribe tool
+    #[serde(default)]
+    pub enabled: bool,
+    /// Groq API key for Whisper transcription
+    pub groq_api_key: Option<String>,
+    /// Whisper model to use
+    #[serde(default = "default_transcribe_model")]
+    pub model: String,
+}
+
+fn default_transcribe_model() -> String {
+    "whisper-large-v3-turbo".to_string()
+}
+
 /// Tools configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -1019,6 +1174,12 @@ pub struct ToolsConfig {
     pub google_sheets: GoogleSheetsToolConfig,
     /// HTTP request tool configuration
     pub http_request: Option<HttpRequestConfig>,
+    /// Voice transcription tool configuration
+    #[serde(default)]
+    pub transcribe: TranscribeConfig,
+    /// Skills marketplace (ClawHub) configuration
+    #[serde(default)]
+    pub skills: SkillsMarketplaceConfig,
 }
 
 /// Configuration for the HTTP request tool.
@@ -1238,6 +1399,84 @@ impl Default for HeartbeatConfig {
 }
 
 // ============================================================================
+
+// ============================================================================
+// Skills Marketplace (ClawHub) Configuration
+// ============================================================================
+
+/// Skills marketplace (ClawHub) tool configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct SkillsMarketplaceConfig {
+    /// Enable skills marketplace tools (find_skills, install_skill).
+    #[serde(default)]
+    pub enabled: bool,
+    /// ClawHub registry settings.
+    #[serde(default)]
+    pub clawhub: ClawHubConfig,
+    /// In-memory search cache settings.
+    #[serde(default)]
+    pub search_cache: SearchCacheConfig,
+}
+
+/// ClawHub registry connection settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClawHubConfig {
+    /// Enable the ClawHub registry (requires skills.enabled too).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Base URL for the ClawHub API.
+    #[serde(default = "default_clawhub_url")]
+    pub base_url: String,
+    /// Optional Bearer token for authenticated registry access.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+}
+
+fn default_clawhub_url() -> String {
+    "https://clawhub.ai".to_string()
+}
+
+impl Default for ClawHubConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            base_url: default_clawhub_url(),
+            auth_token: None,
+        }
+    }
+}
+
+/// In-memory search result cache settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SearchCacheConfig {
+    /// Maximum number of cached queries.
+    #[serde(default = "default_cache_size")]
+    pub max_size: usize,
+    /// Cache entry TTL in seconds.
+    #[serde(default = "default_cache_ttl")]
+    pub ttl_seconds: u64,
+}
+
+fn default_cache_size() -> usize {
+    50
+}
+
+fn default_cache_ttl() -> u64 {
+    300
+}
+
+impl Default for SearchCacheConfig {
+    fn default() -> Self {
+        Self {
+            max_size: default_cache_size(),
+            ttl_seconds: default_cache_ttl(),
+        }
+    }
+}
+
 // Skills Configuration
 // ============================================================================
 

@@ -541,6 +541,13 @@ impl Config {
         {
             self.tools.google_sheets.service_account_base64 = Some(val);
         }
+
+        if let Ok(v) = std::env::var("ZEPTOCLAW_TOOLS_TRANSCRIBE_GROQ_API_KEY") {
+            self.tools.transcribe.groq_api_key = Some(v);
+        }
+        if let Ok(v) = std::env::var("ZEPTOCLAW_TOOLS_TRANSCRIBE_ENABLED") {
+            self.tools.transcribe.enabled = v == "true" || v == "1";
+        }
     }
 
     /// Apply memory-specific environment variable overrides.
@@ -761,6 +768,17 @@ impl Config {
                 "skip" => self.routines.on_miss = crate::cron::OnMiss::Skip,
                 "run_once" => self.routines.on_miss = crate::cron::OnMiss::RunOnce,
                 _ => {}
+            }
+        }
+        if let Ok(v) = std::env::var("ZEPTOCLAW_HEALTH_ENABLED") {
+            self.health.enabled = v == "true" || v == "1";
+        }
+        if let Ok(v) = std::env::var("ZEPTOCLAW_HEALTH_HOST") {
+            self.health.host = v;
+        }
+        if let Ok(v) = std::env::var("ZEPTOCLAW_HEALTH_PORT") {
+            if let Ok(port) = v.parse::<u16>() {
+                self.health.port = port;
             }
         }
     }

@@ -9,6 +9,7 @@
 //!
 //! - `Tool` trait: The interface that all tools must implement
 //! - `ToolContext`: Execution context (channel, chat_id, workspace)
+//! - `ToolOutput`: Dual-audience result (LLM vs user)
 //! - `ToolRegistry`: Central registry for managing and executing tools
 //!
 //! # Built-in Tools
@@ -31,7 +32,7 @@
 //! # Example
 //!
 //! ```rust
-//! use zeptoclaw::tools::{Tool, ToolContext, ToolRegistry, EchoTool};
+//! use zeptoclaw::tools::{Tool, ToolContext, ToolOutput, ToolRegistry, EchoTool};
 //! use zeptoclaw::tools::filesystem::ReadFileTool;
 //! use zeptoclaw::tools::shell::ShellTool;
 //! use serde_json::json;
@@ -45,7 +46,7 @@
 //!
 //! // Execute a tool
 //! let result = registry.execute("echo", json!({"message": "Hello!"})).await;
-//! assert_eq!(result.unwrap(), "Hello!");
+//! assert_eq!(result.unwrap().for_llm, "Hello!");
 //!
 //! // Get tool definitions for LLM
 //! let definitions = registry.definitions();
@@ -76,8 +77,11 @@ pub mod reminder;
 #[cfg(feature = "screenshot")]
 pub mod screenshot;
 pub mod shell;
+pub mod skills_install;
+pub mod skills_search;
 pub mod spawn;
 pub mod stripe;
+pub mod transcribe;
 mod types;
 pub mod web;
 pub mod whatsapp;
@@ -99,8 +103,11 @@ pub use registry::ToolRegistry;
 pub use reminder::ReminderTool;
 #[cfg(feature = "screenshot")]
 pub use screenshot::WebScreenshotTool;
+pub use skills_install::InstallSkillTool;
+pub use skills_search::FindSkillsTool;
 pub use stripe::StripeTool;
-pub use types::{Tool, ToolCategory, ToolContext};
+pub use transcribe::TranscribeTool;
+pub use types::{Tool, ToolCategory, ToolContext, ToolOutput};
 pub use web::{is_blocked_host, resolve_and_check_host, WebFetchTool, WebSearchTool};
 pub use whatsapp::WhatsAppTool;
 
@@ -117,14 +124,14 @@ use crate::error::Result;
 /// # Example
 ///
 /// ```rust
-/// use zeptoclaw::tools::{Tool, ToolContext, EchoTool};
+/// use zeptoclaw::tools::{Tool, ToolContext, ToolOutput, EchoTool};
 /// use serde_json::json;
 ///
 /// # tokio_test::block_on(async {
 /// let tool = EchoTool;
 /// let ctx = ToolContext::new();
 /// let result = tool.execute(json!({"message": "Hello"}), &ctx).await;
-/// assert_eq!(result.unwrap(), "Hello");
+/// assert_eq!(result.unwrap().for_llm, "Hello");
 /// # });
 /// ```
 pub struct EchoTool;
@@ -156,12 +163,12 @@ impl Tool for EchoTool {
         })
     }
 
-    async fn execute(&self, args: Value, _ctx: &ToolContext) -> Result<String> {
+    async fn execute(&self, args: Value, _ctx: &ToolContext) -> Result<ToolOutput> {
         let message = args
             .get("message")
             .and_then(|v| v.as_str())
             .unwrap_or("(no message)");
-        Ok(message.to_string())
+        Ok(ToolOutput::llm_only(message))
     }
 }
 
@@ -202,7 +209,7 @@ mod tests {
             .execute(json!({"message": "Hello, World!"}), &ctx)
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Hello, World!");
+        assert_eq!(result.unwrap().for_llm, "Hello, World!");
     }
 
     #[tokio::test]
@@ -212,7 +219,7 @@ mod tests {
 
         let result = tool.execute(json!({}), &ctx).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "(no message)");
+        assert_eq!(result.unwrap().for_llm, "(no message)");
     }
 
     #[tokio::test]
@@ -222,7 +229,7 @@ mod tests {
 
         let result = tool.execute(json!({"message": ""}), &ctx).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "");
+        assert_eq!(result.unwrap().for_llm, "");
     }
 
     #[tokio::test]
@@ -235,7 +242,7 @@ mod tests {
         // Context should be ignored by EchoTool, but execution should still work
         let result = tool.execute(json!({"message": "test"}), &ctx).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test");
+        assert_eq!(result.unwrap().for_llm, "test");
     }
 
     #[tokio::test]
@@ -245,7 +252,7 @@ mod tests {
 
         let result = tool.execute(json!({"message": "Hello World"}), &ctx).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Hello World");
+        assert_eq!(result.unwrap().for_llm, "Hello World");
     }
 
     #[tokio::test]
@@ -257,7 +264,7 @@ mod tests {
             .execute(json!({"message": "Line1\nLine2\tTab"}), &ctx)
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Line1\nLine2\tTab");
+        assert_eq!(result.unwrap().for_llm, "Line1\nLine2\tTab");
     }
 
     #[test]

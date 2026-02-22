@@ -22,9 +22,12 @@
 //! ```
 
 pub mod claude;
+pub mod cooldown;
+pub mod error_classifier;
 pub mod fallback;
 pub mod gemini;
 pub mod openai;
+pub mod plugin;
 mod registry;
 pub mod retry;
 pub mod rotation;
@@ -47,9 +50,12 @@ pub const RUNTIME_SUPPORTED_PROVIDERS: &[&str] = &[
 use crate::error::ProviderError;
 
 pub use claude::ClaudeProvider;
+pub use cooldown::{CooldownTracker, FailoverReason};
+pub use error_classifier::classify_error_message;
 pub use fallback::FallbackProvider;
 pub use gemini::GeminiProvider;
 pub use openai::OpenAIProvider;
+pub use plugin::ProviderPlugin;
 pub use registry::{
     configured_provider_names, configured_unsupported_provider_names, provider_config_by_name,
     resolve_runtime_provider, resolve_runtime_providers, ProviderSpec, RuntimeProviderSelection,
@@ -72,9 +78,28 @@ pub fn parse_provider_error(status: u16, body: &str) -> ProviderError {
         402 => ProviderError::Billing(body.to_string()),
         404 => ProviderError::ModelNotFound(body.to_string()),
         429 => ProviderError::RateLimit(body.to_string()),
-        400 => ProviderError::InvalidRequest(body.to_string()),
-        500..=599 => ProviderError::ServerError(body.to_string()),
-        _ => ProviderError::Unknown(format!("HTTP {}: {}", status, body)),
+        400 => {
+            // 400 can be a format error — check body patterns
+            let classified = error_classifier::classify_error_message(body);
+            if matches!(classified, ProviderError::Format(_)) {
+                classified
+            } else {
+                ProviderError::InvalidRequest(body.to_string())
+            }
+        }
+        500..=599 => {
+            // 5xx can be overloaded — check body
+            let classified = error_classifier::classify_error_message(body);
+            if matches!(classified, ProviderError::Overloaded(_)) {
+                classified
+            } else {
+                ProviderError::ServerError(body.to_string())
+            }
+        }
+        _ => {
+            let msg = format!("HTTP {}: {}", status, body);
+            error_classifier::classify_error_message(&msg)
+        }
     }
 }
 

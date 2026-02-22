@@ -34,6 +34,9 @@ const KNOWN_TOP_LEVEL: &[&str] = &[
     "cache",
     "agent_mode",
     "pairing",
+    "health",
+    "devices",
+    "logging",
 ];
 
 /// Known fields for each section. Nested as section.field.
