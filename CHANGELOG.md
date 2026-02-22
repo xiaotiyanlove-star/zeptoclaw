@@ -5,6 +5,63 @@ All notable changes to ZeptoClaw will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-02-22
+
+### Added
+- **Android device control** — Feature-gated ADB tool (`--features android`) with screen perception via uiautomator XML parsing, 22 actions (tap, type, swipe, scroll, launch, screenshot, etc.), stuck detection, and URL scheme validation
+- **Voice transcription** — WhatsApp Cloud voice message transcription with configurable provider support
+- **Telegram /model command** — Runtime LLM switching from chat (`/model list`, `/model <provider:model>`, `/model reset`) with per-chat persistence
+- **Agent modes** — Category-based autonomy levels (Observer, Assistant, Autonomous) replacing numeric autonomy levels
+- **Response cache** — LLM response caching to reduce duplicate API calls
+- **Device pairing** — USB device discovery and pairing support for hardware integrations
+- **Hardware tool** — GPIO, serial, and USB peripheral operations
+- **HTTP request tool** — General-purpose HTTP client tool for arbitrary API calls
+- **PDF read tool** — Extract text content from PDF files
+- **Transcribe tool** — Audio transcription with provider abstraction
+- **Git tool** — Git operations (status, diff, log, commit) as an agent tool
+- **Project tool** — Project scaffolding and management operations
+- **Stripe tool** — Stripe API integration for payment operations with production hardening
+- **Skills search & install** — `find_skills` and `install_skill` tools for runtime skill discovery
+- **Web screenshot tool** — Capture webpage screenshots
+- **Skill registry** — Centralized skill discovery and management
+- **Provider plugins** — External LLM provider support via plugin system
+- **Error classifier** — Structured provider error classification for smarter retry/fallback
+- **Provider cooldown** — Rate-limit-aware cooldown periods between provider requests
+- **Structured logging** — Configurable log levels and format via `utils/logging.rs`
+- **Lark channel** — Lark/Feishu messaging integration
+- **Email channel** — Email-based agent interaction
+- **WhatsApp Cloud channel** — Official WhatsApp Cloud API (webhook + REST, no bridge dependency)
+- **Claude Code subscription auth** — OAuth token support for Anthropic providers
+- **Smarter retry** — Improved retry logic with error classification and backoff tuning
+- **Gemini native provider** — Direct Google Gemini API support
+- **Pluggable memory backends** — BM25, embedding, HNSW, Tantivy searcher options
+- **Agent swarm improvements** — Parallel dispatch, aggregation, scratchpad, cost-aware routing
+- **Production polish** — Sandbox mode, heartbeat delivery, extensibility improvements
+- **Onboard OpenRouter** — OpenRouter added to provider setup menu
+- **R8r tool enhancements** — Status, emit, and create actions
+
+### Changed
+- Tool count increased from 18 to 29 built-in tools (+ android feature-gated)
+- Channel count increased from 5 to 8 (added Lark, Email, WhatsApp Cloud)
+- Test count increased from 1,560 to 2,300+
+- Autonomy levels renamed to agent modes (category-based)
+- Dockerfile Rust version updated to 1.93
+
+### Fixed
+- UTF-8 truncation panic in web.rs and custom.rs
+- RISC-V getrandom SIGSEGV via build.rs cfg override
+- Broken interactive prompts in setup.sh
+- Cross-PR commit contamination detection in CI
+
+### Security
+- Android tool URL scheme allowlist (blocks javascript:, file:, intent:)
+- Android tool busybox/toybox shell command bypass prevention
+- Android tool shell metacharacter blocking
+- Audit logging for security events
+- WhatsApp sender authentication
+- Plugin SHA256 verification
+- Apple Container gating
+
 ## [0.4.0] - 2026-02-15
 
 ### Added
@@ -73,5 +130,6 @@ First public release.
 - Mount allowlist validation
 - Cron job caps and spawn recursion prevention
 
+[0.5.0]: https://github.com/qhkm/zeptoclaw/releases/tag/v0.5.0
 [0.4.0]: https://github.com/qhkm/zeptoclaw/releases/tag/v0.4.0
 [0.2.0]: https://github.com/qhkm/zeptoclaw/releases/tag/v0.2.0

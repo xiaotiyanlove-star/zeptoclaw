@@ -31,13 +31,13 @@ $ zeptoclaw agent --stream -m "Analyze our API for security issues"
 ✓ Analysis complete in 4.2s
 ```
 
-We studied the best AI assistants — and their tradeoffs. OpenClaw's integrations without the 100MB. NanoClaw's security without the TypeScript bundle. PicoClaw's size without the bare-bones feature set. One Rust binary with 17 tools, 5 channels, 9 providers, and container isolation.
+We studied the best AI assistants — and their tradeoffs. OpenClaw's integrations without the 100MB. NanoClaw's security without the TypeScript bundle. PicoClaw's size without the bare-bones feature set. One Rust binary with 29 tools, 8 channels, 9 providers, and container isolation.
 
 <p align="center">
   <img src="https://img.shields.io/badge/binary-~4MB-3b82f6" alt="~4MB binary">
   <img src="https://img.shields.io/badge/startup-~50ms-3b82f6" alt="~50ms startup">
   <img src="https://img.shields.io/badge/RAM-~6MB-3b82f6" alt="~6MB RAM">
-  <img src="https://img.shields.io/badge/tests-1%2C300%2B-3b82f6" alt="1,300+ tests">
+  <img src="https://img.shields.io/badge/tests-2%2C300%2B-3b82f6" alt="2,300+ tests">
   <img src="https://img.shields.io/badge/providers-9-3b82f6" alt="9 providers">
 </p>
 
@@ -194,16 +194,16 @@ Any provider's base URL can be overridden with `api_base` for proxies or self-ho
 | Feature | What it does |
 |---------|-------------|
 | **Multi-Provider LLM** | 9 providers with SSE streaming, retry with backoff, auto-failover |
-| **17 Tools + Plugins** | Shell, filesystem, web, memory, cron, WhatsApp, Google Sheets, and more |
-| **Agent Swarms** | Delegate to sub-agents with role-specific prompts and tool whitelists |
+| **29 Tools + Plugins** | Shell, filesystem, web, git, stripe, PDF, transcription, Android ADB, and more |
+| **Agent Swarms** | Delegate to sub-agents with parallel dispatch, aggregation, and cost-aware routing |
 | **Batch Mode** | Process hundreds of prompts from text/JSONL files with template support |
-| **Agent Templates** | 4 built-in (coder, researcher, writer, analyst) + custom JSON templates |
+| **Agent Modes** | Observer, Assistant, Autonomous — category-based tool access control |
 
 ### Channels & Integration
 
 | Feature | What it does |
 |---------|-------------|
-| **5-Channel Gateway** | Telegram, Slack, Discord, Webhook, CLI — unified message bus |
+| **8-Channel Gateway** | Telegram, Slack, Discord, WhatsApp, Lark, Email, Webhook, CLI — unified message bus |
 | **Plugin System** | JSON manifest plugins auto-discovered from `~/.zeptoclaw/plugins/` |
 | **Hooks** | `before_tool`, `after_tool`, `on_error` with Log, Block, and Notify actions |
 | **Cron & Heartbeat** | Schedule recurring tasks, proactive check-ins, background spawning |
@@ -230,7 +230,7 @@ ZeptoClaw is inspired by projects in the open-source AI agent ecosystem — Open
 ## Development
 
 ```bash
-cargo test              # 1,100+ tests
+cargo test              # 2,300+ tests
 cargo clippy -- -D warnings
 cargo fmt -- --check
 ```
