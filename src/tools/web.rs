@@ -590,10 +590,7 @@ fn is_private_or_local_ipv6(addr: Ipv6Addr) -> bool {
             (segs[7] >> 8) as u8,
             segs[7] as u8,
         );
-        // Skip the all-zeros case (already caught by is_unspecified above)
-        if ipv4 != Ipv4Addr::UNSPECIFIED {
-            return is_private_or_local_ipv4(ipv4);
-        }
+        return is_private_or_local_ipv4(ipv4);
     }
 
     // NAT64 well-known prefix (64:ff9b::/96) — RFC 6052
@@ -1033,6 +1030,23 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn test_ipv4_mapped_unspecified_blocked() {
+        // ::ffff:0.0.0.0 — IPv4-mapped with embedded 0.0.0.0 must be blocked
+        let addr: IpAddr = "::ffff:0.0.0.0".parse().unwrap();
+        assert!(
+            is_private_or_local_ip(addr),
+            "::ffff:0.0.0.0 should be blocked (unspecified IPv4)"
+        );
+        // ::0.0.0.0 — IPv4-compatible with embedded 0.0.0.0 (same as ::)
+        // Already caught by is_unspecified, but verify
+        let addr2: IpAddr = "::".parse().unwrap();
+        assert!(
+            is_private_or_local_ip(addr2),
+            ":: should be blocked (unspecified)"
+        );
+    }
+
     fn test_ipv6_transition_public_ipv4_allowed() {
         // Legitimate public IPv4 embedded in transition addresses should NOT be blocked
         // 8.8.8.8 via NAT64
