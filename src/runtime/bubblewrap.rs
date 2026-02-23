@@ -75,9 +75,12 @@ impl ContainerRuntime for BubblewrapRuntime {
     async fn is_available(&self) -> bool {
         #[cfg(feature = "sandbox-bubblewrap")]
         {
+            use std::process::Stdio;
             use tokio::process::Command;
             Command::new("which")
                 .arg("bwrap")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .output()
                 .await
                 .map(|o| o.status.success())

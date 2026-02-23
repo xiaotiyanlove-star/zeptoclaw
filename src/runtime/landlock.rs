@@ -41,9 +41,10 @@ impl ContainerRuntime for LandlockRuntime {
         "landlock"
     }
 
-    /// Always returns true -- availability is checked at exec time via kernel ABI negotiation.
+    /// Returns true only when the `sandbox-landlock` feature is compiled in.
+    /// Actual kernel support is checked at exec time via ABI negotiation.
     async fn is_available(&self) -> bool {
-        true
+        cfg!(feature = "sandbox-landlock")
     }
 
     async fn execute(
@@ -174,14 +175,18 @@ fn apply_landlock_rules_in_child(config: &LandlockConfig) -> Result<(), RuntimeE
     // Grant read access to configured directories.
     for dir in &config.fs_read_dirs {
         if let Ok(fd) = PathFd::new(dir) {
-            let _ = ruleset.add_rule(PathBeneath::new(fd, AccessFs::from_read(abi)));
+            if let Err(e) = ruleset.add_rule(PathBeneath::new(fd, AccessFs::from_read(abi))) {
+                eprintln!("landlock: failed to add read rule for {dir:?}: {e}");
+            }
         }
     }
 
     // Grant full access (read + write) to configured write directories.
     for dir in &config.fs_write_dirs {
         if let Ok(fd) = PathFd::new(dir) {
-            let _ = ruleset.add_rule(PathBeneath::new(fd, AccessFs::from_all(abi)));
+            if let Err(e) = ruleset.add_rule(PathBeneath::new(fd, AccessFs::from_all(abi))) {
+                eprintln!("landlock: failed to add write rule for {dir:?}: {e}");
+            }
         }
     }
 
@@ -213,9 +218,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_landlock_runtime_is_always_available() {
+    async fn test_landlock_runtime_available_matches_feature() {
         let rt = LandlockRuntime::new(LandlockConfig::default());
-        assert!(rt.is_available().await);
+        assert_eq!(
+            rt.is_available().await,
+            cfg!(feature = "sandbox-landlock"),
+            "is_available() should reflect whether sandbox-landlock feature is compiled in"
+        );
     }
 
     #[test]
