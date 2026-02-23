@@ -525,6 +525,15 @@ Verified on Apple Silicon (release build):
 
 Skills are OpenClaw-compatible — the loader reads `metadata.zeptoclaw`, `metadata.openclaw`, or raw metadata objects (in that priority order). Supported extensions: `os` platform filter, `requires.anyBins` (alias `any_bins`).
 
+**Core skills** (bundled in this repo — `skills/`): `github`, `skill-creator`
+- Only skills essential to ZeptoClaw's own dev workflow belong here.
+
+**Community skills** (third-party integrations, platform-specific, utilities):
+- Maintained at: https://github.com/qhkm/zeptoclaw-skills
+- Discoverable via: `zeptoclaw skills search <query>`
+- Installable via: `zeptoclaw skills install --github qhkm/zeptoclaw-skills`
+- To contribute a skill, open a PR to that repo instead of this one.
+
 ## Dependencies
 
 Key crates:
