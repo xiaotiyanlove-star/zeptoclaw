@@ -270,7 +270,17 @@ pub(crate) async fn cmd_gateway(
             .heartbeat
             .deliver_to
             .as_deref()
-            .and_then(parse_deliver_to)
+            .and_then(|s| {
+                let parsed = parse_deliver_to(s);
+                if parsed.is_none() {
+                    warn!(
+                        "heartbeat.deliver_to {:?} is not in 'channel:chat_id' format; \
+                         falling back to pseudo-channel",
+                        s
+                    );
+                }
+                parsed
+            })
             .unwrap_or_else(|| ("heartbeat".to_string(), "system".to_string()));
 
         let service = Arc::new(HeartbeatService::new(
