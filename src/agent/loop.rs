@@ -20,7 +20,7 @@ use crate::providers::{ChatOptions, LLMProvider};
 use crate::safety::SafetyLayer;
 use crate::session::{Message, Role, SessionManager, ToolCall};
 use crate::tools::approval::ApprovalGate;
-use crate::tools::{Tool, ToolContext, ToolRegistry};
+use crate::tools::{Tool, ToolCategory, ToolContext, ToolRegistry};
 use crate::utils::metrics::MetricsCollector;
 
 use super::budget::TokenBudget;
@@ -631,6 +631,19 @@ impl AgentLoop {
             let tool_feedback_tx = self.tool_feedback_tx.clone();
             let is_dry_run = self.dry_run.load(Ordering::SeqCst);
             let current_agent_mode = self.agent_mode;
+
+            // If any tool in this batch writes to the filesystem, run all tools
+            // sequentially (in LLM-declared order) to prevent read-before-write races.
+            let has_filesystem_writer = {
+                let tools_guard = self.tools.read().await;
+                response.tool_calls.iter().any(|tc| {
+                    tools_guard
+                        .get(&tc.name)
+                        .map(|t| t.category() == ToolCategory::FilesystemWrite)
+                        .unwrap_or(false)
+                })
+            };
+
             let tool_futures: Vec<_> = response
                 .tool_calls
                 .iter()
@@ -797,7 +810,15 @@ impl AgentLoop {
                 })
                 .collect();
 
-            let results = futures::future::join_all(tool_futures).await;
+            let results = if has_filesystem_writer {
+                let mut out = Vec::with_capacity(tool_futures.len());
+                for fut in tool_futures {
+                    out.push(fut.await);
+                }
+                out
+            } else {
+                futures::future::join_all(tool_futures).await
+            };
 
             for (id, result) in results {
                 session.add_message(Message::tool_result(&id, &result));
@@ -975,6 +996,18 @@ impl AgentLoop {
             let tool_feedback_tx = self.tool_feedback_tx.clone();
             let is_dry_run_stream = self.dry_run.load(Ordering::SeqCst);
             let current_agent_mode_stream = self.agent_mode;
+
+            // Same sequentialisation as the non-streaming path.
+            let has_filesystem_writer_stream = {
+                let tools_guard = self.tools.read().await;
+                response.tool_calls.iter().any(|tc| {
+                    tools_guard
+                        .get(&tc.name)
+                        .map(|t| t.category() == ToolCategory::FilesystemWrite)
+                        .unwrap_or(false)
+                })
+            };
+
             let tool_futures: Vec<_> = response
                 .tool_calls
                 .iter()
@@ -1113,7 +1146,15 @@ impl AgentLoop {
                 })
                 .collect();
 
-            let results = futures::future::join_all(tool_futures).await;
+            let results = if has_filesystem_writer_stream {
+                let mut out = Vec::with_capacity(tool_futures.len());
+                for fut in tool_futures {
+                    out.push(fut.await);
+                }
+                out
+            } else {
+                futures::future::join_all(tool_futures).await
+            };
             for (id, result) in results {
                 session.add_message(Message::tool_result(&id, &result));
             }
