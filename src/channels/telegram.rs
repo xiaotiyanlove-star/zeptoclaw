@@ -397,9 +397,9 @@ impl Channel for TelegramChannel {
                                     );
                                 } else {
                                     info!(
-                                        "Telegram: User {} not in allow_from list ({} IDs configured), ignoring message",
-                                        user_id,
-                                        allowlist.len()
+                                        "Telegram: User {} not in allow_from list, ignoring message. \
+                                         Configured IDs: {:?}",
+                                        user_id, allowlist
                                     );
                                 }
                                 return Ok(());
