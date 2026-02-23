@@ -271,6 +271,20 @@ enum MaxTokenField {
     MaxCompletionTokens,
 }
 
+/// Return the correct token limit field for a model without needing a failed request.
+///
+/// OpenAI's `o1`, `o3`, `o4`, and `gpt-5` families require `max_completion_tokens`
+/// instead of `max_tokens`. All other models default to `max_tokens`.
+fn static_token_field_for_model(model: &str) -> MaxTokenField {
+    // Normalise to lowercase for prefix matching.
+    let m = model.to_lowercase();
+    if m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4") || m.starts_with("gpt-5") {
+        MaxTokenField::MaxCompletionTokens
+    } else {
+        MaxTokenField::MaxTokens
+    }
+}
+
 // ============================================================================
 // OpenAI Provider
 // ============================================================================
@@ -368,7 +382,7 @@ impl OpenAIProvider {
             .lock()
             .ok()
             .and_then(|fields| fields.get(model).copied())
-            .unwrap_or(MaxTokenField::MaxTokens)
+            .unwrap_or_else(|| static_token_field_for_model(model))
     }
 
     /// Remember the preferred token field for a model.
@@ -922,8 +936,60 @@ mod tests {
     #[test]
     fn test_token_field_for_model_defaults_to_max_tokens() {
         let provider = OpenAIProvider::new("test-key");
+        // Legacy models default to max_tokens.
+        assert_eq!(
+            provider.token_field_for_model("gpt-4o"),
+            MaxTokenField::MaxTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("gpt-4-turbo"),
+            MaxTokenField::MaxTokens
+        );
+    }
+
+    #[test]
+    fn test_token_field_for_model_uses_max_completion_tokens_for_known_families() {
+        let provider = OpenAIProvider::new("test-key");
+        // gpt-5 family requires max_completion_tokens.
         assert_eq!(
             provider.token_field_for_model("gpt-5.1-2025-11-13"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("gpt-5"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        // o1/o3/o4 families.
+        assert_eq!(
+            provider.token_field_for_model("o1-mini"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("o3-mini-2025-01-31"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("o4-mini"),
+            MaxTokenField::MaxCompletionTokens
+        );
+    }
+
+    #[test]
+    fn test_static_token_field_for_model() {
+        assert_eq!(
+            static_token_field_for_model("gpt-5.1-2025-11-13"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("o1-preview"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("o3"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("gpt-4o-mini"),
             MaxTokenField::MaxTokens
         );
     }
