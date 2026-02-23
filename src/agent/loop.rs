@@ -16,7 +16,7 @@ use crate::cache::ResponseCache;
 use crate::config::Config;
 use crate::error::{Result, ZeptoError};
 use crate::health::UsageMetrics;
-use crate::providers::{ChatOptions, LLMProvider};
+use crate::providers::{ChatOptions, LLMProvider, LLMToolCall};
 use crate::safety::SafetyLayer;
 use crate::session::{Message, Role, SessionManager, ToolCall};
 use crate::tools::approval::ApprovalGate;
@@ -36,6 +36,29 @@ Be selective: only save what would be useful in future conversations.";
 
 /// Maximum wall-clock time (in seconds) allowed for the memory flush LLM turn.
 const MEMORY_FLUSH_TIMEOUT_SECS: u64 = 10;
+
+/// Returns `true` if any tool in the batch may cause ordering-sensitive side effects
+/// (filesystem writes, shell commands) and the batch should be executed sequentially
+/// rather than in parallel.
+///
+/// Unknown tools (not found in the registry) default to `true` (fail-safe: serialize).
+async fn needs_sequential_execution(
+    tools: &Arc<RwLock<ToolRegistry>>,
+    tool_calls: &[LLMToolCall],
+) -> bool {
+    let guard = tools.read().await;
+    tool_calls.iter().any(|tc| {
+        guard
+            .get(&tc.name)
+            .map(|t| {
+                matches!(
+                    t.category(),
+                    ToolCategory::FilesystemWrite | ToolCategory::Shell
+                )
+            })
+            .unwrap_or(true) // unknown tool → serialize to be safe
+    })
+}
 
 /// Tool execution feedback event for CLI display.
 #[derive(Debug, Clone)]
@@ -632,17 +655,8 @@ impl AgentLoop {
             let is_dry_run = self.dry_run.load(Ordering::SeqCst);
             let current_agent_mode = self.agent_mode;
 
-            // If any tool in this batch writes to the filesystem, run all tools
-            // sequentially (in LLM-declared order) to prevent read-before-write races.
-            let has_filesystem_writer = {
-                let tools_guard = self.tools.read().await;
-                response.tool_calls.iter().any(|tc| {
-                    tools_guard
-                        .get(&tc.name)
-                        .map(|t| t.category() == ToolCategory::FilesystemWrite)
-                        .unwrap_or(false)
-                })
-            };
+            let run_sequential =
+                needs_sequential_execution(&self.tools, &response.tool_calls).await;
 
             let tool_futures: Vec<_> = response
                 .tool_calls
@@ -810,7 +824,7 @@ impl AgentLoop {
                 })
                 .collect();
 
-            let results = if has_filesystem_writer {
+            let results = if run_sequential {
                 let mut out = Vec::with_capacity(tool_futures.len());
                 for fut in tool_futures {
                     out.push(fut.await);
@@ -997,16 +1011,8 @@ impl AgentLoop {
             let is_dry_run_stream = self.dry_run.load(Ordering::SeqCst);
             let current_agent_mode_stream = self.agent_mode;
 
-            // Same sequentialisation as the non-streaming path.
-            let has_filesystem_writer_stream = {
-                let tools_guard = self.tools.read().await;
-                response.tool_calls.iter().any(|tc| {
-                    tools_guard
-                        .get(&tc.name)
-                        .map(|t| t.category() == ToolCategory::FilesystemWrite)
-                        .unwrap_or(false)
-                })
-            };
+            let run_sequential =
+                needs_sequential_execution(&self.tools, &response.tool_calls).await;
 
             let tool_futures: Vec<_> = response
                 .tool_calls
@@ -1146,7 +1152,7 @@ impl AgentLoop {
                 })
                 .collect();
 
-            let results = if has_filesystem_writer_stream {
+            let results = if run_sequential {
                 let mut out = Vec::with_capacity(tool_futures.len());
                 for fut in tool_futures {
                     out.push(fut.await);
@@ -2215,5 +2221,124 @@ mod tests {
         assert!(agent.is_dry_run());
         agent.set_dry_run(false);
         assert!(!agent.is_dry_run());
+    }
+
+    // ----------------------------------------------------------------
+    // needs_sequential_execution tests
+    // ----------------------------------------------------------------
+
+    /// Minimal mock tool with configurable name and category.
+    #[derive(Debug)]
+    struct StubTool {
+        name: &'static str,
+        category: ToolCategory,
+    }
+
+    #[async_trait]
+    impl Tool for StubTool {
+        fn name(&self) -> &str {
+            self.name
+        }
+        fn description(&self) -> &str {
+            ""
+        }
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({})
+        }
+        fn category(&self) -> ToolCategory {
+            self.category
+        }
+        async fn execute(
+            &self,
+            _args: serde_json::Value,
+            _ctx: &ToolContext,
+        ) -> std::result::Result<crate::tools::ToolOutput, crate::error::ZeptoError> {
+            Ok(crate::tools::ToolOutput::llm_only("ok"))
+        }
+    }
+
+    fn make_tool_call(name: &str) -> LLMToolCall {
+        LLMToolCall {
+            id: format!("call_{name}"),
+            name: name.to_string(),
+            arguments: "{}".to_string(),
+        }
+    }
+
+    fn registry_with(tools: Vec<StubTool>) -> Arc<RwLock<ToolRegistry>> {
+        let mut reg = ToolRegistry::new();
+        for t in tools {
+            reg.register(Box::new(t));
+        }
+        Arc::new(RwLock::new(reg))
+    }
+
+    #[tokio::test]
+    async fn test_sequential_triggered_by_filesystem_write() {
+        let reg = registry_with(vec![
+            StubTool {
+                name: "write_file",
+                category: ToolCategory::FilesystemWrite,
+            },
+            StubTool {
+                name: "read_file",
+                category: ToolCategory::FilesystemRead,
+            },
+        ]);
+        let calls = vec![make_tool_call("write_file"), make_tool_call("read_file")];
+        assert!(needs_sequential_execution(&reg, &calls).await);
+    }
+
+    #[tokio::test]
+    async fn test_sequential_triggered_by_shell() {
+        let reg = registry_with(vec![
+            StubTool {
+                name: "shell",
+                category: ToolCategory::Shell,
+            },
+            StubTool {
+                name: "read_file",
+                category: ToolCategory::FilesystemRead,
+            },
+        ]);
+        let calls = vec![make_tool_call("shell"), make_tool_call("read_file")];
+        assert!(needs_sequential_execution(&reg, &calls).await);
+    }
+
+    #[tokio::test]
+    async fn test_parallel_when_only_reads() {
+        let reg = registry_with(vec![
+            StubTool {
+                name: "read_file",
+                category: ToolCategory::FilesystemRead,
+            },
+            StubTool {
+                name: "web_fetch",
+                category: ToolCategory::NetworkRead,
+            },
+        ]);
+        let calls = vec![make_tool_call("read_file"), make_tool_call("web_fetch")];
+        assert!(!needs_sequential_execution(&reg, &calls).await);
+    }
+
+    #[tokio::test]
+    async fn test_sequential_for_unknown_tool_fail_safe() {
+        let reg = registry_with(vec![StubTool {
+            name: "read_file",
+            category: ToolCategory::FilesystemRead,
+        }]);
+        // "mystery_tool" is not in the registry → should default to sequential.
+        let calls = vec![make_tool_call("read_file"), make_tool_call("mystery_tool")];
+        assert!(needs_sequential_execution(&reg, &calls).await);
+    }
+
+    #[tokio::test]
+    async fn test_parallel_for_single_read_tool() {
+        let reg = registry_with(vec![StubTool {
+            name: "memory_search",
+            category: ToolCategory::Memory,
+        }]);
+        let calls = vec![make_tool_call("memory_search")];
+        assert!(!needs_sequential_execution(&reg, &calls).await);
     }
 }
