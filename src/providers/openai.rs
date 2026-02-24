@@ -271,6 +271,31 @@ enum MaxTokenField {
     MaxCompletionTokens,
 }
 
+/// Return the correct token limit field for a model without needing a failed request.
+///
+/// OpenAI's `o`-series and `gpt-5` families require `max_completion_tokens`
+/// instead of `max_tokens`. All other models (including `gpt-4o`) default to
+/// `max_tokens`. Unknown models also default to `max_tokens`; the runtime
+/// retry-and-learn mechanism handles them if the first call is rejected.
+fn static_token_field_for_model(model: &str) -> MaxTokenField {
+    let m = model.to_lowercase();
+
+    // o-series reasoning models: o1, o2 (reserved), o3, o4.
+    // All known and future o-series models use max_completion_tokens.
+    if m.starts_with("o1") || m.starts_with("o2") || m.starts_with("o3") || m.starts_with("o4") {
+        return MaxTokenField::MaxCompletionTokens;
+    }
+
+    // gpt-5 and gpt-5.x series (e.g. gpt-5, gpt-5.1-2025-11-13).
+    // Exclude potential multimodal variants like gpt-5o (analogous to gpt-4o)
+    // until their token-field semantics are confirmed.
+    if m.starts_with("gpt-5") && !m.starts_with("gpt-5o") {
+        return MaxTokenField::MaxCompletionTokens;
+    }
+
+    MaxTokenField::MaxTokens
+}
+
 // ============================================================================
 // OpenAI Provider
 // ============================================================================
@@ -368,7 +393,7 @@ impl OpenAIProvider {
             .lock()
             .ok()
             .and_then(|fields| fields.get(model).copied())
-            .unwrap_or(MaxTokenField::MaxTokens)
+            .unwrap_or_else(|| static_token_field_for_model(model))
     }
 
     /// Remember the preferred token field for a model.
@@ -599,6 +624,9 @@ impl LLMProvider for OpenAIProvider {
     ) -> Result<LLMResponse> {
         let model = model.unwrap_or(DEFAULT_MODEL);
         let mut token_field = self.token_field_for_model(model);
+        // For known-family models, token_field is already MaxCompletionTokens,
+        // so this starts `true` and the retry branch below is skipped entirely.
+        // The retry path only activates for unknown models that reject max_tokens.
         let mut retried_for_token_field = token_field == MaxTokenField::MaxCompletionTokens;
 
         loop {
@@ -675,6 +703,8 @@ impl LLMProvider for OpenAIProvider {
 
         let model = model.unwrap_or(DEFAULT_MODEL);
         let mut token_field = self.token_field_for_model(model);
+        // See comment in chat() — for known families this starts true,
+        // skipping the retry branch entirely.
         let mut retried_for_token_field = token_field == MaxTokenField::MaxCompletionTokens;
 
         loop {
@@ -922,8 +952,105 @@ mod tests {
     #[test]
     fn test_token_field_for_model_defaults_to_max_tokens() {
         let provider = OpenAIProvider::new("test-key");
+        // Legacy models default to max_tokens.
+        assert_eq!(
+            provider.token_field_for_model("gpt-4o"),
+            MaxTokenField::MaxTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("gpt-4-turbo"),
+            MaxTokenField::MaxTokens
+        );
+    }
+
+    #[test]
+    fn test_token_field_for_model_uses_max_completion_tokens_for_known_families() {
+        let provider = OpenAIProvider::new("test-key");
+        // gpt-5 family requires max_completion_tokens.
         assert_eq!(
             provider.token_field_for_model("gpt-5.1-2025-11-13"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("gpt-5"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        // o1/o3/o4 families.
+        assert_eq!(
+            provider.token_field_for_model("o1-mini"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("o3-mini-2025-01-31"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            provider.token_field_for_model("o4-mini"),
+            MaxTokenField::MaxCompletionTokens
+        );
+    }
+
+    #[test]
+    fn test_static_token_field_for_model() {
+        // gpt-5 family → MaxCompletionTokens.
+        assert_eq!(
+            static_token_field_for_model("gpt-5.1-2025-11-13"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("gpt-5"),
+            MaxTokenField::MaxCompletionTokens
+        );
+
+        // o-series → MaxCompletionTokens.
+        assert_eq!(
+            static_token_field_for_model("o1-preview"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("o2"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("o3"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("o4"),
+            MaxTokenField::MaxCompletionTokens
+        );
+
+        // Case-insensitive matching.
+        assert_eq!(
+            static_token_field_for_model("O1-MINI"),
+            MaxTokenField::MaxCompletionTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("GPT-5.1"),
+            MaxTokenField::MaxCompletionTokens
+        );
+
+        // gpt-5o excluded (multimodal variant, semantics unknown).
+        assert_eq!(
+            static_token_field_for_model("gpt-5o"),
+            MaxTokenField::MaxTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("gpt-5o-mini"),
+            MaxTokenField::MaxTokens
+        );
+
+        // Legacy models → MaxTokens.
+        assert_eq!(
+            static_token_field_for_model("gpt-4o-mini"),
+            MaxTokenField::MaxTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("gpt-4-turbo"),
+            MaxTokenField::MaxTokens
+        );
+        assert_eq!(
+            static_token_field_for_model("unknown-model"),
             MaxTokenField::MaxTokens
         );
     }

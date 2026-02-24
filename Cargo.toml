@@ -1,6 +1,6 @@
 [package]
 name = "zeptoclaw"
-version = "0.5.3"
+version = "0.5.5"
 edition = "2021"
 authors = ["ZeptoClaw Contributors"]
 description = "Ultra-lightweight personal AI assistant"
@@ -10,6 +10,7 @@ repository = "https://github.com/qhkm/zeptoclaw"
 homepage = "https://github.com/qhkm/zeptoclaw"
 keywords = ["ai", "agent", "llm", "cli", "rust"]
 categories = ["command-line-utilities"]
+autobins = false
 
 [dependencies]
 # =============================================================================

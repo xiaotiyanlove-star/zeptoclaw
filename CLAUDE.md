@@ -21,7 +21,7 @@ cargo clippy -- -D warnings
 cargo fmt
 
 # Test counts (cargo test)
-# lib: 1791, main: 59, cli_smoke: 23, e2e: 13, integration: 70, doc: 141 (116 passed, 25 ignored)
+# lib: 2398, main: 91, cli_smoke: 23, e2e: 13, integration: 70, doc: 147 (121 passed, 26 ignored)
 
 # Version
 ./target/release/zeptoclaw --version
@@ -107,6 +107,12 @@ cargo fmt
 cargo release patch          # preview bump 0.5.x → 0.5.x+1 (dry-run by default)
 cargo release minor          # preview bump 0.5.x → 0.6.0
 cargo release patch --execute  # actually bump, commit, tag, push, publish to crates.io
+
+# Self-update
+./target/release/zeptoclaw update              # update to latest
+./target/release/zeptoclaw update --check      # check without downloading
+./target/release/zeptoclaw update --version v0.5.2  # specific version
+./target/release/zeptoclaw update --force      # re-download even if current
 ```
 
 ## Agent Workflow — Task Tracking Protocol
@@ -301,6 +307,8 @@ Message input channels via `Channel` trait:
 - CLI mode via direct agent invocation
 - All channels support `deny_by_default` config option for sender allowlists
 - `ChannelManager` stores channel handles as `Arc<Mutex<_>>`, so outbound dispatch does not hold the channel map lock across async `send()`
+- `ChannelManager` supervision: polling supervisor (15s) detects dead channels via `is_running()`, restarts with 60s cooldown, max 5 restarts, reports to `HealthRegistry`
+- All spawned channel tasks set `running = false` on exit to prevent stale `is_running()` flags
 
 ### Deps (`src/deps/`)
 - `HasDependencies` trait — components declare external dependencies
@@ -481,10 +489,10 @@ cargo build --release
 ## Testing
 
 ```bash
-# Unit tests (1791 tests)
+# Unit tests (2398 tests)
 cargo test --lib
 
-# Main binary tests (59 tests)
+# Main binary tests (91 tests)
 cargo test --bin zeptoclaw
 
 # CLI smoke tests (23 tests)
@@ -493,10 +501,10 @@ cargo test --test cli_smoke
 # End-to-end tests (13 tests)
 cargo test --test e2e
 
-# Integration tests (68 tests)
+# Integration tests (70 tests)
 cargo test --test integration
 
-# All tests (~2,101 total including doc tests)
+# All tests (~2,716 total including doc tests)
 cargo test
 
 # Specific test

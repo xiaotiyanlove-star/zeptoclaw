@@ -95,9 +95,12 @@ pub(crate) async fn cmd_gateway(
         }
     };
 
+    // Create HealthRegistry (shared between health server and channel supervisor)
+    let health_registry = HealthRegistry::new();
+
     // Start HealthRegistry-based server if config.health.enabled
     if config.health.enabled {
-        let registry = HealthRegistry::new();
+        let registry = health_registry.clone();
         let host = config.health.host.clone();
         let port = config.health.port;
         tokio::spawn(async move {
@@ -187,11 +190,12 @@ pub(crate) async fn cmd_gateway(
         proxy = Some(proxy_instance);
 
         Some(tokio::spawn(async move {
-            if let Err(e) = proxy_for_task.start().await {
-                error!("Container agent proxy error: {}", e);
-            }
+            let result = proxy_for_task.start().await;
             proxy_metrics.set_ready(false);
-            warn!("Container agent proxy stopped; readiness set to false");
+            match result {
+                Err(e) => error!("Container agent proxy error: {}", e),
+                Ok(()) => warn!("Container agent proxy stopped"),
+            }
         }))
     } else {
         // Validate provider for in-process mode
@@ -225,8 +229,9 @@ pub(crate) async fn cmd_gateway(
         None
     };
 
-    // Create channel manager
-    let channel_manager = ChannelManager::new(bus.clone(), config.clone());
+    // Create channel manager with health supervision
+    let mut channel_manager = ChannelManager::new(bus.clone(), config.clone());
+    channel_manager.set_health_registry(health_registry);
 
     // Install and start channel dependencies (if any)
     let deps_dir = DepManager::default_dir();
@@ -329,11 +334,12 @@ pub(crate) async fn cmd_gateway(
         let agent_clone = Arc::clone(agent);
         let agent_metrics = Arc::clone(&metrics);
         Some(tokio::spawn(async move {
-            if let Err(e) = agent_clone.start().await {
-                error!("Agent loop error: {}", e);
-            }
+            let result = agent_clone.start().await;
             agent_metrics.set_ready(false);
-            warn!("Agent loop stopped; readiness set to false");
+            match result {
+                Err(e) => error!("Agent loop error: {}", e),
+                Ok(()) => warn!("Agent loop stopped"),
+            }
         }))
     } else {
         None
