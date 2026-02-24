@@ -21,7 +21,7 @@ cargo clippy -- -D warnings
 cargo fmt
 
 # Test counts (cargo test)
-# lib: 2398, main: 91, cli_smoke: 23, e2e: 13, integration: 70, doc: 147 (121 passed, 26 ignored)
+# lib: 2430, main: 91, cli_smoke: 23, e2e: 13, integration: 70, doc: 147 (121 passed, 26 ignored)
 
 # Version
 ./target/release/zeptoclaw --version
@@ -215,7 +215,7 @@ src/
 ├── providers/      # LLM providers (Claude, OpenAI, Retry, Fallback)
 ├── runtime/        # Container runtimes (Native, Docker, Apple)
 ├── routines/       # Event/webhook/cron triggered automations
-├── safety/         # Prompt injection detection, secret leak scanning, policy engine
+├── safety/         # Prompt injection detection, secret leak scanning, policy engine, chain alerting
 ├── security/       # Shell blocklist, path validation, mount policy, secret encryption
 │   └── encryption.rs # XChaCha20-Poly1305 + Argon2id secret encryption at rest
 ├── session/        # Session, message persistence, conversation history
@@ -349,7 +349,7 @@ Message input channels via `Channel` trait:
 - `Bm25Searcher` - Okapi BM25 keyword scorer (feature-gated: `memory-bm25`, zero deps)
 - `create_searcher()` - Factory maps `MemoryBackend` config to `Arc<dyn MemorySearcher>`
 - Workspace memory - Markdown search/read with pluggable searcher injection
-- `LongTermMemory` - Persistent key-value store at `~/.zeptoclaw/memory/longterm.json` with pluggable searcher, categories, tags, access tracking
+- `LongTermMemory` - Persistent key-value store at `~/.zeptoclaw/memory/longterm.json` with pluggable searcher, categories, tags, access tracking; injection guard on `set()` rejects values containing prompt injection patterns
 - `decay_score()` on `MemoryEntry` - 30-day half-life decay with importance weighting; pinned entries exempt (always 1.0)
 - `build_memory_injection()` - Pinned + query-matched memory injection for system prompt (2000 char budget)
 - Pre-compaction memory flush - Silent LLM turn saves important facts before context compaction (10s timeout)
@@ -367,9 +367,11 @@ Message input channels via `Channel` trait:
 - `leak_detector.rs` - 22 regex patterns for API keys/tokens/secrets; Block, Redact, or Warn actions
 - `policy.rs` - 7 security policy rules (system file access, crypto keys, SQL, shell injection, encoded exploits)
 - `validator.rs` - Input length (100KB max), null byte, whitespace ratio, repetition detection
+- `chain_alert.rs` - Tool chain alerting: tracks tool call sequences per session, warns on dangerous patterns (write→execute, execute→fetch, memory→execute)
+- Tiered inbound injection scanning in agent loop: webhook channel blocked on injection, allowlisted channels (telegram, discord, etc.) warn-only
 
 ### Security (`src/security/`)
-- `shell.rs` - Regex-based command blocklist + optional allowlist (`ShellAllowlistMode`: Off/Warn/Strict)
+- `shell.rs` - Regex-based command blocklist + optional allowlist (`ShellAllowlistMode`: Off/Warn/Strict); includes `.zeptoclaw/config.json` blocklist to prevent LLM-driven config exfiltration
 - `path.rs` - Workspace path validation, symlink escape detection
 - `mount.rs` - Mount allowlist validation, docker binary verification
 - `encryption.rs` - `SecretEncryption`: XChaCha20-Poly1305 AEAD + Argon2id KDF, `ENC[...]` ciphertext format, `resolve_master_key()` for env/file/prompt sources, transparent config decrypt on load
@@ -489,7 +491,7 @@ cargo build --release
 ## Testing
 
 ```bash
-# Unit tests (2398 tests)
+# Unit tests (2430 tests)
 cargo test --lib
 
 # Main binary tests (91 tests)
@@ -504,7 +506,7 @@ cargo test --test e2e
 # Integration tests (70 tests)
 cargo test --test integration
 
-# All tests (~2,716 total including doc tests)
+# All tests (~2,748 total including doc tests)
 cargo test
 
 # Specific test
