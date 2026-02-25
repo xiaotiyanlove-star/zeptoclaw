@@ -21,6 +21,7 @@
 //! - `EditFileTool`: Edit a file by replacing text
 //! - `ShellTool`: Execute shell commands
 //! - `WebSearchTool`: Search the web via Brave Search API
+//! - `DdgSearchTool`: Free web search via DuckDuckGo HTML scraping (fallback)
 //! - `WebFetchTool`: Fetch URL content and extract text
 //! - `MessageTool`: Send proactive outbound chat messages
 //! - `MemorySearchTool`: Search workspace markdown memory files
@@ -114,7 +115,9 @@ pub use skills_search::FindSkillsTool;
 pub use stripe::StripeTool;
 pub use transcribe::TranscribeTool;
 pub use types::{Tool, ToolCategory, ToolContext, ToolOutput};
-pub use web::{is_blocked_host, resolve_and_check_host, WebFetchTool, WebSearchTool};
+pub use web::{
+    is_blocked_host, resolve_and_check_host, DdgSearchTool, WebFetchTool, WebSearchTool,
+};
 pub use whatsapp::WhatsAppTool;
 
 use async_trait::async_trait;
