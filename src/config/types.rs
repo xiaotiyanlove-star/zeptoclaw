@@ -127,9 +127,6 @@ pub struct Config {
     /// Logging configuration (format, level, optional file output).
     #[serde(default)]
     pub logging: LoggingConfig,
-    /// Panel (control panel) configuration.
-    #[serde(default)]
-    pub panel: crate::api::config::PanelConfig,
 }
 
 // ============================================================================

@@ -53,7 +53,3 @@ landing/.env
 docs/launch/
 
 .history/
-
-# Panel frontend
-panel/node_modules/
-panel/dist/
