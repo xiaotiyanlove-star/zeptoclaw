@@ -9,7 +9,7 @@ Project-level guidance for coding agents working in this repository.
 - Extra binary: `benchmark` (`src/bin/benchmark.rs`)
 - Benchmarks: `benches/message_bus.rs`
 - Integration tests: `tests/integration.rs`
-- Codebase: ~50,000+ lines of Rust
+- Codebase: ~106,000+ lines of Rust
 - Channels: 9 (Telegram, Slack, Discord, WhatsApp, WhatsApp Cloud, Lark, Email, Webhook, Serial)
 - Runtimes: 6 (Native, Docker, Apple Container, Landlock, Firejail, Bubblewrap)
 - Peripherals: 4 boards (ESP32, RPi, Arduino, Nucleo) with GPIO, I2C, NVS, Serial
@@ -26,7 +26,7 @@ Project-level guidance for coding agents working in this repository.
 - Persona switching: `/persona` command with presets and custom text, LTM persistence per chat
 - Tool composition: natural language tool creation with `{{param}}` template interpolation
 - Gateway startup guard: degrade after N crashes to prevent crash loops
-- Tests: 2567 lib + 92 main + 23 cli_smoke + 13 e2e + 70 integration + 122 doc (27 ignored)
+- Tests: 2581 lib + 92 main + 23 cli_smoke + 13 e2e + 70 integration + 122 doc (27 ignored)
 
 ## Task Tracking Protocol
 
