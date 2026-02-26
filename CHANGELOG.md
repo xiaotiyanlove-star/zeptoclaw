@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.6.1] - 2026-02-27
 
+### Added
+- **Control panel web UI** — axum API server with REST routes, WebSocket event streaming, JWT auth, CSRF protection; React + Vite + Tailwind frontend with Dashboard, Logs, Sessions, Cron/Routines, Kanban (drag-and-drop), and live Agent Office pages; `zeptoclaw panel` CLI command (#180)
+- **Google Workspace tools** — Gmail search/read/send/reply + Calendar list/create/freebusy via gogcli-rs; feature-gated behind `--features google` (#162)
+
 ### Fixed
 - **Per-message memory injection** — LLM now receives query-matched relevant memories (not just pinned) in every message, including tool-loop follow-up calls (#188)
 - Shared single LTM instance between agent injection and `longterm_memory` tool (eliminates duplicate initialization)
+- Per-skill install from multi-skill repos (#169)
+- Per-provider model mapping for fallback chains (#166)
 - Added `version` spec to `gog-*` git dependencies for crates.io publishing compatibility
 
 ### Changed
