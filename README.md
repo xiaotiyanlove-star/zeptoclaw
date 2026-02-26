@@ -34,7 +34,7 @@ $ zeptoclaw agent --stream -m "Analyze our API for security issues"
 We studied the best AI assistants — and their tradeoffs. OpenClaw's integrations without the 100MB. NanoClaw's security without the TypeScript bundle. PicoClaw's size without the bare-bones feature set. One Rust binary with 29 tools, 9 channels, 9 providers, and 6 sandbox runtimes.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/binary-~4MB-3b82f6" alt="~4MB binary">
+  <img src="https://img.shields.io/badge/binary-~6MB-3b82f6" alt="~6MB binary">
   <img src="https://img.shields.io/badge/startup-~50ms-3b82f6" alt="~50ms startup">
   <img src="https://img.shields.io/badge/RAM-~6MB-3b82f6" alt="~6MB RAM">
   <img src="https://img.shields.io/badge/tests-2%2C880%2B-3b82f6" alt="2,880+ tests">
@@ -47,7 +47,7 @@ We studied what works — and what doesn't.
 
 **OpenClaw** proved an AI assistant can handle 12 channels and 100+ skills. But it costs 100MB and 400K lines. **NanoClaw** proved security-first is possible. But it's still 50MB of TypeScript. **PicoClaw** proved AI assistants can run on $10 hardware. But it stripped out everything to get there.
 
-**ZeptoClaw** took notes. The integrations, the security, the size discipline — without the tradeoffs each one made. One 4MB Rust binary that starts in 50ms, uses 6MB of RAM, and ships with container isolation, prompt injection detection, and a circuit breaker provider stack.
+**ZeptoClaw** took notes. The integrations, the security, the size discipline — without the tradeoffs each one made. One 6MB Rust binary that starts in 50ms, uses 6MB of RAM, and ships with container isolation, prompt injection detection, and a circuit breaker provider stack.
 
 ## Security
 

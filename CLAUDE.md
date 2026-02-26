@@ -583,7 +583,7 @@ cargo test -- --nocapture
 ## Benchmarks
 
 Verified on Apple Silicon (release build):
-- Binary size: ~4MB
+- Binary size: ~6MB (stripped, macos-aarch64)
 - Startup time: ~50ms
 - Memory (RSS): ~6MB
 
