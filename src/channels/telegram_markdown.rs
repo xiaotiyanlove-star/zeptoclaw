@@ -159,7 +159,7 @@ pub fn render_and_chunk_telegram_markdown(content: &str, chunk_size: usize) -> V
                     {
                         active_tags.remove(idx);
                         event_str.push_str(ActiveTag::Blockquote.close_tag());
-                        event_str.push_str("\n");
+                        event_str.push('\n');
                     }
                 }
                 TagEnd::CodeBlock => {
@@ -174,7 +174,7 @@ pub fn render_and_chunk_telegram_markdown(content: &str, chunk_size: usize) -> V
                     in_code_block = false;
                 }
                 TagEnd::Item | TagEnd::List(_) => {
-                    event_str.push_str("\n");
+                    event_str.push('\n');
                 }
                 TagEnd::Strong => {
                     if let Some(idx) = active_tags
@@ -203,7 +203,7 @@ pub fn render_and_chunk_telegram_markdown(content: &str, chunk_size: usize) -> V
                         event_str.push_str(ActiveTag::Strikethrough.close_tag());
                     }
                 }
-                TagEnd::Link { .. } => {
+                TagEnd::Link => {
                     if let Some(idx) = active_tags
                         .iter()
                         .rposition(|t| matches!(t, ActiveTag::Anchor(_)))
@@ -223,7 +223,7 @@ pub fn render_and_chunk_telegram_markdown(content: &str, chunk_size: usize) -> V
                     }
                 }
                 TagEnd::TableRow => {
-                    event_str.push_str("\n");
+                    event_str.push('\n');
                 }
                 TagEnd::TableCell => {
                     event_str.push_str(" | ");
@@ -261,7 +261,7 @@ pub fn render_and_chunk_telegram_markdown(content: &str, chunk_size: usize) -> V
                 event_str.push_str(ActiveTag::Code.close_tag());
             }
             Event::SoftBreak | Event::HardBreak => {
-                event_str.push_str("\n");
+                event_str.push('\n');
             }
             _ => {}
         }

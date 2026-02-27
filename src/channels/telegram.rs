@@ -81,8 +81,6 @@ struct OverridesDep {
     persona: PersonaOverrideStore,
 }
 
-
-
 /// Telegram channel implementation using teloxide.
 ///
 /// This channel connects to Telegram's Bot API to receive and send messages.
@@ -769,7 +767,7 @@ impl Channel for TelegramChannel {
 
         // Chunk and render markdown into Telegram-supported HTML blocks
         let chunks = super::telegram_markdown::render_and_chunk_telegram_markdown(
-            &msg.content, 
+            &msg.content,
             self.config.chunk_size,
         );
 
@@ -785,13 +783,15 @@ impl Channel for TelegramChannel {
             // Route reply to the correct forum topic when thread metadata is present.
             if let Some(thread_id_str) = msg.metadata.get("telegram_thread_id") {
                 if let Ok(tid) = thread_id_str.parse::<i32>() {
-                    req = req
-                        .message_thread_id(teloxide::types::ThreadId(teloxide::types::MessageId(tid)));
+                    req = req.message_thread_id(teloxide::types::ThreadId(
+                        teloxide::types::MessageId(tid),
+                    ));
                 }
             }
 
-            req.await
-                .map_err(|e| ZeptoError::Channel(format!("Failed to send Telegram message chunk: {}", e)))?;
+            req.await.map_err(|e| {
+                ZeptoError::Channel(format!("Failed to send Telegram message chunk: {}", e))
+            })?;
         }
 
         info!("Telegram: Message sent successfully to chat {}", chat_id);
@@ -900,8 +900,6 @@ mod tests {
         assert!(!channel.is_allowed("user3"));
         assert!(!channel.is_allowed("hacker"));
     }
-
-
 
     #[tokio::test]
     async fn test_telegram_start_without_token() {
