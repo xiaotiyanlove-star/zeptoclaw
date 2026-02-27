@@ -813,20 +813,40 @@ impl Default for WebhookConfig {
     }
 }
 
+fn default_telegram_chunk_size() -> usize {
+    4000
+}
+
 /// Telegram channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramConfig {
     /// Whether the channel is enabled
     #[serde(default)]
     pub enabled: bool,
     /// Bot token from BotFather
     pub token: String,
+    /// Maximum message size before chunking (Telegram limits to 4096).
+    /// Default is 4000 to leave room for some buffer.
+    #[serde(default = "default_telegram_chunk_size")]
+    pub chunk_size: usize,
     /// Allowlist of user IDs/usernames (empty = allow all unless `deny_by_default` is set)
     #[serde(default)]
     pub allow_from: Vec<String>,
     /// When true, empty `allow_from` rejects all senders (strict mode).
     #[serde(default)]
     pub deny_by_default: bool,
+}
+
+impl Default for TelegramConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            token: String::new(),
+            chunk_size: default_telegram_chunk_size(),
+            allow_from: Vec::new(),
+            deny_by_default: false,
+        }
+    }
 }
 
 /// Discord channel configuration

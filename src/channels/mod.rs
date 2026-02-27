@@ -120,6 +120,7 @@ pub mod plugin;
 pub mod serial;
 pub mod slack;
 pub mod telegram;
+pub mod telegram_markdown;
 mod types;
 pub mod webhook;
 pub mod whatsapp;

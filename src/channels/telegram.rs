@@ -81,38 +81,7 @@ struct OverridesDep {
     persona: PersonaOverrideStore,
 }
 
-fn render_telegram_html(content: &str) -> String {
-    let mut out = String::with_capacity(content.len() + 16);
-    let mut chars = content.chars().peekable();
-    let mut spoiler_open = false;
 
-    while let Some(ch) = chars.next() {
-        if ch == '|' && chars.peek() == Some(&'|') {
-            let _ = chars.next();
-            if spoiler_open {
-                out.push_str("</tg-spoiler>");
-            } else {
-                out.push_str("<tg-spoiler>");
-            }
-            spoiler_open = !spoiler_open;
-            continue;
-        }
-
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            _ => out.push(ch),
-        }
-    }
-
-    // Graceful fallback for unmatched spoiler marker.
-    if spoiler_open {
-        out.push_str("</tg-spoiler>");
-    }
-
-    out
-}
 
 /// Telegram channel implementation using teloxide.
 ///
@@ -798,21 +767,32 @@ impl Channel for TelegramChannel {
             .as_ref()
             .ok_or_else(|| ZeptoError::Channel("Telegram bot not initialized".to_string()))?;
 
-        let rendered = render_telegram_html(&msg.content);
-        let mut req = bot
-            .send_message(ChatId(chat_id), rendered)
-            .parse_mode(ParseMode::Html);
+        // Chunk and render markdown into Telegram-supported HTML blocks
+        let chunks = super::telegram_markdown::render_and_chunk_telegram_markdown(
+            &msg.content, 
+            self.config.chunk_size,
+        );
 
-        // Route reply to the correct forum topic when thread metadata is present.
-        if let Some(thread_id_str) = msg.metadata.get("telegram_thread_id") {
-            if let Ok(tid) = thread_id_str.parse::<i32>() {
-                req = req
-                    .message_thread_id(teloxide::types::ThreadId(teloxide::types::MessageId(tid)));
+        for chunk in chunks {
+            if chunk.is_empty() {
+                continue;
             }
-        }
 
-        req.await
-            .map_err(|e| ZeptoError::Channel(format!("Failed to send Telegram message: {}", e)))?;
+            let mut req = bot
+                .send_message(ChatId(chat_id), chunk)
+                .parse_mode(ParseMode::Html);
+
+            // Route reply to the correct forum topic when thread metadata is present.
+            if let Some(thread_id_str) = msg.metadata.get("telegram_thread_id") {
+                if let Ok(tid) = thread_id_str.parse::<i32>() {
+                    req = req
+                        .message_thread_id(teloxide::types::ThreadId(teloxide::types::MessageId(tid)));
+                }
+            }
+
+            req.await
+                .map_err(|e| ZeptoError::Channel(format!("Failed to send Telegram message chunk: {}", e)))?;
+        }
 
         info!("Telegram: Message sent successfully to chat {}", chat_id);
         Ok(())
@@ -921,23 +901,7 @@ mod tests {
         assert!(!channel.is_allowed("hacker"));
     }
 
-    #[test]
-    fn test_render_telegram_html_escapes_html() {
-        let rendered = render_telegram_html("5 < 7 & 9 > 2");
-        assert_eq!(rendered, "5 &lt; 7 &amp; 9 &gt; 2");
-    }
 
-    #[test]
-    fn test_render_telegram_html_spoiler_pairs() {
-        let rendered = render_telegram_html("Secret: ||classified|| data");
-        assert_eq!(rendered, "Secret: <tg-spoiler>classified</tg-spoiler> data");
-    }
-
-    #[test]
-    fn test_render_telegram_html_unmatched_spoiler() {
-        let rendered = render_telegram_html("Dangling ||spoiler");
-        assert_eq!(rendered, "Dangling <tg-spoiler>spoiler</tg-spoiler>");
-    }
 
     #[tokio::test]
     async fn test_telegram_start_without_token() {
