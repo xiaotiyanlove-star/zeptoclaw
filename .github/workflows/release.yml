@@ -19,6 +19,10 @@ jobs:
             os: ubuntu-latest
             artifact: zeptoclaw-linux-x86_64
             features: peripheral-esp32
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: zeptoclaw-linux-x86_64-musl
+            features: peripheral-esp32
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: zeptoclaw-linux-aarch64
@@ -51,6 +55,10 @@ jobs:
       - name: Install OpenSSL (Linux x86_64)
         if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install musl tooltools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --features ${{ matrix.features }}
