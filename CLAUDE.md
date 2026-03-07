@@ -14,8 +14,8 @@ cargo build --release --features android
 # Build with MQTT IoT channel
 cargo build --release --features mqtt
 
-# Run tests
-cargo test
+# Run tests (use nextest to avoid OOM kills on low-RAM machines)
+cargo nextest run --lib
 
 # Lint
 cargo clippy -- -D warnings
@@ -203,7 +203,7 @@ cargo fmt
 cargo clippy -- -D warnings
 
 # 3. Tests (MUST pass)
-cargo test --lib
+cargo nextest run --lib
 
 # 4. Verify clean format (no unstaged changes from fmt)
 cargo fmt -- --check
@@ -213,7 +213,7 @@ cargo fmt -- --check
 
 **Quick one-liner for CI parity:**
 ```bash
-cargo fmt && cargo clippy -- -D warnings && cargo test --lib && cargo fmt -- --check
+cargo fmt && cargo clippy -- -D warnings && cargo nextest run --lib && cargo test --doc && cargo fmt -- --check
 ```
 
 ## Architecture
@@ -679,30 +679,36 @@ cargo build --release
 
 ## Testing
 
+Uses `cargo nextest` (process-per-test isolation, avoids OOM kills on low-RAM machines).
+Install: `cargo install cargo-nextest --locked`
+
 ```bash
-# Unit tests (2609 tests)
-cargo test --lib
+# Unit tests
+cargo nextest run --lib
 
-# Main binary tests (97 tests)
-cargo test --bin zeptoclaw
+# Main binary tests
+cargo nextest run --bin zeptoclaw
 
-# CLI smoke tests (23 tests)
-cargo test --test cli_smoke
+# CLI smoke tests
+cargo nextest run --test cli_smoke
 
-# End-to-end tests (13 tests)
-cargo test --test e2e
+# End-to-end tests
+cargo nextest run --test e2e
 
-# Integration tests (70 tests)
-cargo test --test integration
+# Integration tests
+cargo nextest run --test integration
 
-# All tests (~2,935 total including doc tests)
-cargo test
+# All tests (excludes doc tests; run cargo test --doc separately)
+cargo nextest run
 
 # Specific test
-cargo test test_name
+cargo nextest run test_name
 
 # With output
-cargo test -- --nocapture
+cargo nextest run --no-capture
+
+# Fallback: plain cargo test (may OOM on low-RAM machines)
+cargo test --lib -- --test-threads=1
 ```
 
 ## Benchmarks

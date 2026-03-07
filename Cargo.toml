@@ -263,6 +263,9 @@ criterion = { version = "0.8", features = ["async_tokio"] }
 name = "message_bus"
 harness = false
 
+[profile.test]
+opt-level = 1
+
 [profile.release]
 opt-level = "z"
 lto = true
