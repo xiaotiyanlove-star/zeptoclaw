@@ -1093,7 +1093,8 @@ impl AgentLoop {
             let workspace_str = workspace.to_string_lossy();
             let tool_ctx = ToolContext::new()
                 .with_channel(&msg.channel, &msg.chat_id)
-                .with_workspace(&workspace_str);
+                .with_workspace(&workspace_str)
+                .with_batch(msg.metadata.get("is_batch").is_some_and(|v| v == "true"));
 
             let approval_gate = Arc::clone(&self.approval_gate);
             let safety_layer = self.safety_layer.clone();
@@ -1171,7 +1172,7 @@ impl AgentLoop {
                         if let crate::hooks::HookResult::Block(msg) =
                             hooks.before_tool(&name, &args, channel_name, chat_id)
                         {
-                            return (id, format!("Tool '{}' blocked by hook: {}", name, msg));
+                            return (id, format!("Tool '{}' blocked by hook: {}", name, msg), false);
                         }
 
                         // Agent mode enforcement (before approval gate).
@@ -1191,7 +1192,7 @@ impl AgentLoop {
                                         return (id, format!(
                                             "Tool '{}' is blocked in {} mode (category: {})",
                                             name, agent_mode, tool_category
-                                        ));
+                                        ), false);
                                     }
                                     crate::security::CategoryPermission::RequiresApproval => {
                                         if !gate.requires_approval(&name) {
@@ -1199,7 +1200,7 @@ impl AgentLoop {
                                             return (id, format!(
                                                 "Tool '{}' requires approval in {} mode (category: {}). Not executed.",
                                                 name, agent_mode, tool_category
-                                            ));
+                                            ), false);
                                         }
                                         // Fall through to approval gate — it will prompt for approval
                                     }
@@ -1212,12 +1213,12 @@ impl AgentLoop {
                         if gate.requires_approval(&name) {
                             let prompt = gate.format_approval_request(&name, &args);
                             info!(tool = %name, "Tool requires approval, blocking execution");
-                            return (id, format!("Tool '{}' requires user approval and was not executed. {}", name, prompt));
+                            return (id, format!("Tool '{}' requires user approval and was not executed. {}", name, prompt), false);
                         }
 
                         // Dry-run mode: describe what would happen without executing
                         if dry_run {
-                            return (id, Self::dry_run_result(&name, &args, &raw_args, budget));
+                            return (id, Self::dry_run_result(&name, &args, &raw_args, budget), false);
                         }
 
                         // Send tool starting feedback
@@ -1268,6 +1269,7 @@ impl AgentLoop {
                             }
                         };
 
+                        let pause = tool_output.as_ref().is_some_and(|o| o.pause_for_input);
                         let elapsed = tool_start.elapsed();
                         let latency_ms = elapsed.as_millis() as u64;
                         // Send to user if tool opted in
@@ -1335,7 +1337,7 @@ impl AgentLoop {
                             budget,
                         );
 
-                        (id, sanitized)
+                        (id, sanitized, pause)
                     }
                 })
                 .collect();
@@ -1358,9 +1360,14 @@ impl AgentLoop {
                 .collect();
             chain_tracker.record(&tool_names);
 
-            let results: Vec<(String, String)> = results;
-            for (id, result) in &results {
+            let results: Vec<(String, String, bool)> = results;
+            let should_pause = results.iter().any(|(_, _, pause)| *pause);
+            for (id, result, _) in &results {
                 session.add_message(Message::tool_result(id, result));
+            }
+
+            if should_pause {
+                break;
             }
 
             // Increment tool call counter after execution.
@@ -1418,7 +1425,16 @@ impl AgentLoop {
                 }
 
                 // Record outcomes for outcome-aware blocking.
-                if check_loop_guard_outcomes(guard, &response.tool_calls, &results, &mut session) {
+                let results_for_guard: Vec<(String, String)> = results
+                    .iter()
+                    .map(|(id, r, _)| (id.clone(), r.clone()))
+                    .collect();
+                if check_loop_guard_outcomes(
+                    guard,
+                    &response.tool_calls,
+                    &results_for_guard,
+                    &mut session,
+                ) {
                     response.content =
                         "Stopped tool loop due to repeated identical outcomes.".to_string();
                     break;
@@ -1711,7 +1727,8 @@ impl AgentLoop {
             let workspace_str = workspace.to_string_lossy();
             let tool_ctx = ToolContext::new()
                 .with_channel(&msg.channel, &msg.chat_id)
-                .with_workspace(&workspace_str);
+                .with_workspace(&workspace_str)
+                .with_batch(msg.metadata.get("is_batch").is_some_and(|v| v == "true"));
 
             let approval_gate = Arc::clone(&self.approval_gate);
             let safety_layer_stream = self.safety_layer.clone();
@@ -1784,7 +1801,7 @@ impl AgentLoop {
                                         return (id, format!(
                                             "Tool '{}' is blocked in {} mode (category: {})",
                                             name, agent_mode, tool_category
-                                        ));
+                                        ), false);
                                     }
                                     crate::security::CategoryPermission::RequiresApproval => {
                                         if !gate.requires_approval(&name) {
@@ -1792,7 +1809,7 @@ impl AgentLoop {
                                             return (id, format!(
                                                 "Tool '{}' requires approval in {} mode (category: {}). Not executed.",
                                                 name, agent_mode, tool_category
-                                            ));
+                                            ), false);
                                         }
                                     }
                                     crate::security::CategoryPermission::Allowed => {}
@@ -1810,12 +1827,13 @@ impl AgentLoop {
                                     "Tool '{}' requires user approval and was not executed. {}",
                                     name, prompt
                                 ),
+                                false,
                             );
                         }
 
                         // Dry-run mode: describe what would happen without executing
                         if dry_run {
-                            return (id, Self::dry_run_result(&name, &args, &raw_args, budget));
+                            return (id, Self::dry_run_result(&name, &args, &raw_args, budget), false);
                         }
 
                         // Send tool starting feedback
@@ -1863,6 +1881,7 @@ impl AgentLoop {
                                 (format!("Error: Tool '{}' timed out after {}s", name, tool_timeout.as_secs()), false, None)
                             }
                         };
+                        let pause = tool_output.as_ref().is_some_and(|o| o.pause_for_input);
                         if let Some(output) = tool_output {
                             // Send to user if tool opted in
                             if let Some(ref user_msg) = output.for_user {
@@ -1919,7 +1938,7 @@ impl AgentLoop {
                         let sanitized =
                             crate::utils::sanitize::sanitize_tool_result(&result, budget);
 
-                        (id, sanitized)
+                        (id, sanitized, pause)
                     }
                 })
                 .collect();
@@ -1941,9 +1960,14 @@ impl AgentLoop {
                 .map(|tc| tc.name.clone())
                 .collect();
             chain_tracker.record(&tool_names);
-            let results: Vec<(String, String)> = results;
-            for (id, result) in &results {
+            let results: Vec<(String, String, bool)> = results;
+            let should_pause = results.iter().any(|(_, _, pause)| *pause);
+            for (id, result, _) in &results {
                 session.add_message(Message::tool_result(id, result));
+            }
+
+            if should_pause {
+                break;
             }
 
             // Increment tool call counter after execution.
@@ -1972,7 +1996,16 @@ impl AgentLoop {
                 }
 
                 // Record outcomes for outcome-aware blocking.
-                if check_loop_guard_outcomes(guard, &response.tool_calls, &results, &mut session) {
+                let results_for_guard: Vec<(String, String)> = results
+                    .iter()
+                    .map(|(id, r, _)| (id.clone(), r.clone()))
+                    .collect();
+                if check_loop_guard_outcomes(
+                    guard,
+                    &response.tool_calls,
+                    &results_for_guard,
+                    &mut session,
+                ) {
                     response.content =
                         "Stopped tool loop due to repeated identical outcomes.".to_string();
                     break;
