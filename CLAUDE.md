@@ -32,7 +32,7 @@ cargo clippy -- -D warnings
 cargo fmt
 
 # Test counts (cargo test)
-# current local build: lib 3156 total (3149 passed, 1 failed, 6 ignored), main 92, cli_smoke 24, e2e 13, integration 70, doc 127 passed (27 ignored); optional features such as whatsapp-web add feature-gated coverage
+# current local build: lib 3163 total (3157 passed, 0 failed, 6 ignored), main 92, cli_smoke 24, e2e 13, integration 70, doc 127 passed (27 ignored); optional features such as whatsapp-web add feature-gated coverage
 
 # Version
 ./target/release/zeptoclaw --version
@@ -587,10 +587,10 @@ Panel web dashboard backend:
 - README mascot parity: hero now uses `landing/zeptoclaw/mascot-no-bg.png` (bundled by `landing/deploy.sh`)
 
 ### Safety (`src/safety/`)
-- `SafetyLayer` - Orchestrator: length check → leak detection → policy check → injection sanitization
+- `SafetyLayer` - Orchestrator: length check → leak detection → policy check → injection sanitization, with per-scan policy overrides for narrow carve-outs
 - `sanitizer.rs` - Aho-Corasick multi-pattern matcher for 17 prompt injection patterns + 4 regex patterns
 - `leak_detector.rs` - 22 regex patterns for API keys/tokens/secrets; Block, Redact, or Warn actions
-- `policy.rs` - 7 security policy rules (system file access, crypto keys, SQL, shell injection, encoded exploits)
+- `policy.rs` - 7 security policy rules (system file access, crypto keys, SQL, shell injection, encoded exploits) with selective ignore support for field-aware scans
 - `validator.rs` - Input length (100KB max), null byte, whitespace ratio, repetition detection
 - `chain_alert.rs` - Tool chain alerting: tracks tool call sequences per session, warns on dangerous patterns (write→execute, execute→fetch, memory→execute)
 - Tiered inbound injection scanning in agent loop: webhook channel blocked on injection, allowlisted channels (telegram, discord, etc.) warn-only
