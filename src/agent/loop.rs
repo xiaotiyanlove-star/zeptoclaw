@@ -1487,7 +1487,7 @@ impl AgentLoop {
                         memory_override.as_deref(),
                     )
                     .into_iter()
-                    .filter(|m| !(m.role == Role::User && m.content.is_empty()))
+                    .filter(|m| !(m.role == Role::User && m.content.is_empty() && !m.has_images()))
                     .collect();
                 response = provider
                     .chat(messages, vec![], model, options.clone())
@@ -1552,7 +1552,7 @@ impl AgentLoop {
                     memory_override.as_deref(),
                 )
                 .into_iter()
-                .filter(|m| !(m.role == Role::User && m.content.is_empty()))
+                .filter(|m| !(m.role == Role::User && m.content.is_empty() && !m.has_images()))
                 .collect();
 
             // Send thinking feedback for tool-loop LLM call
@@ -2189,7 +2189,7 @@ impl AgentLoop {
                     memory_override.as_deref(),
                 )
                 .into_iter()
-                .filter(|m| !(m.role == Role::User && m.content.is_empty()))
+                .filter(|m| !(m.role == Role::User && m.content.is_empty() && !m.has_images()))
                 .collect();
 
             if let Some(tx) = self.tool_feedback_tx.read().await.as_ref() {
@@ -2243,7 +2243,7 @@ impl AgentLoop {
                     memory_override.as_deref(),
                 )
                 .into_iter()
-                .filter(|m| !(m.role == Role::User && m.content.is_empty()))
+                .filter(|m| !(m.role == Role::User && m.content.is_empty() && !m.has_images()))
                 .collect();
 
             let tool_definitions = if tool_limit_hit {
