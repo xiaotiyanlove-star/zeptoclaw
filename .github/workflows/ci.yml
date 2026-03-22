@@ -61,6 +61,10 @@ jobs:
       - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Temporary exception: the remaining advisory is only reachable via the
+          # optional MQTT dependency chain (rumqttc -> rustls-webpki 0.102.x).
+          # Remove this once rumqttc ships a release that pulls in rustls-webpki >= 0.103.10.
+          ignore: RUSTSEC-2026-0049
 
   # Heavy checks that only run on main merges
   riscv64-smoke:
